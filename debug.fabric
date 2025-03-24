@@ -1,0 +1,6 @@
+[
+    {
+        "invoke": "CreateAuction",
+        "args": ["1", "test", "50000"]
+    }
+]

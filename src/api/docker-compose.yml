@@ -1,0 +1,14 @@
+version: '3.7'
+
+services:
+  flask-app:
+    container_name: flask_app
+    image: flask_app
+    ports:
+      - 5000:5000
+    networks:
+      - fabric_network
+
+networks:
+  fabric_network:
+    external: true

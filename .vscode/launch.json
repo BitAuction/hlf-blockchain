@@ -1,0 +1,13 @@
+// {
+//     "version": "0.2.0",
+//     "configurations": [
+//         {
+//             "name": "Debug Chaincode",
+//             "type": "hlf-go",
+//             "request": "launch",
+//             "isCaas": false,
+//             "program": "src/auction/auction-simple/chaincode-go/smartContract.go"
+//         }
+//     ],
+//     "compounds": []
+// }

@@ -1,3 +1,0 @@
-0.pool.ntp.org 123
-time3.google.com 123
-time3.google.com|123

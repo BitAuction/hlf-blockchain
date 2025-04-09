@@ -19,11 +19,14 @@ src/network/compose/docker/*.yaml
 src/network/configtx/*.yaml
 
 src/network/network.sh
+src/network/organizations/fabric-ca
 src/network/organizations/fabric-ca/registerEnroll.sh
 src/network/scripts/envVar.sh
 src/network/scripts/createChannel.sh
 src/network/scripts/deployCC.sh
 
+src/auction/auction-simple/application-javascript/
+src/auction/auction-simple/application-javascript/node_modules
 src/auction/auction-simple/application-javascript/wallet/*
 src/auction/auction-simple/application-javascript/*.js
 !src/auction/auction-simple/application-javascript/.eslintrc.js

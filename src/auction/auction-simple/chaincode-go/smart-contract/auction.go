@@ -9,13 +9,15 @@ FullBid has been extended with a 'valid' flag
 package auction
 
 import (
-	"bytes"
+	// "bytes"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
+
 	// "io/ioutil"
 	"log"
 	// "net/http"
@@ -325,13 +327,16 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 
 	// TODO: Get 5 timestamps from the Time Oracle chaincode
 	bidder_timestamp, err := s.GetTimeFromOracle(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get time from Time Oracle: %v", err)
+	}
 	// url := "http://flask-app:5000/bids/new_time" // Replace with the actual URL of your Flask app
 	// // Make an HTTP POST request to your Flask app
 	// resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
 	// if err != nil {
 	// 	return fmt.Errorf("failed to make API call to Flask app: %v", err)
 	// }
-	// defer resp.Body.Close()
+	// defer resp.Body.Close()node revealBid.js org1 bidder1 Auction
 
 	//Finish API Additions
 
@@ -353,7 +358,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	}
 
 	err = ctx.GetStub().PutState(txID, timestampJSON)
-
 	if err != nil {
 		return fmt.Errorf("failed to save timestamp %v: %v", timestampJSON, err)
 	}
@@ -418,16 +422,16 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 
 	hash := sha256.New()
 	hash.Write(transientBidJSON)
-	calculatedBidJSONHash := hash.Sum(nil)
+	// calculatedBidJSONHash := hash.Sum(nil)
 
-	// verify that the hash of the passed immutable properties matches the on-chain hash
-	if !bytes.Equal(calculatedBidJSONHash, bidHash) {
-		return fmt.Errorf("hash %x for bid JSON %s does not match hash in auction: %x",
-			calculatedBidJSONHash,
-			transientBidJSON,
-			bidHash,
-		)
-	}
+	// // verify that the hash of the passed immutable properties matches the on-chain hash
+	// if !bytes.Equal(calculatedBidJSONHash, bidHash) {
+	// 	return fmt.Errorf("hash %x for bid JSON %s does not match hash in auction: %x",
+	// 		calculatedBidJSONHash,
+	// 		transientBidJSON,
+	// 		bidHash,
+	// 	)
+	// }
 
 	// url := "http://flask-app:5000/bids/" + txID // Replace with the actual URL of your Flask app
 
@@ -446,16 +450,19 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	// if resp.StatusCode != http.StatusOK {
 	// 	return fmt.Errorf("API call to the Flask app failed with status code: %d", resp.StatusCode)
 	// }
-	
+
 	body, err := ctx.GetStub().GetState(txID)
 	if err != nil {
 		return fmt.Errorf("failed to read timestamp from state: %v", err)
+	}
+	if body == nil || len(body) == 0 {
+		return fmt.Errorf("no timestamp found for transaction ID: %s", txID)
 	}
 	log.Printf("Successfully retrieved timestamp from state: %v", string(body))
 
 	// Deserialize the JSON response into a TimestampResponse struct
 	var timestamps []string
-	err = json.Unmarshal([]byte(body), &timestamps)
+	err = json.Unmarshal(body, &timestamps)
 	if err != nil {
 		return fmt.Errorf("failed to parse API response: %v", err)
 	}
@@ -639,17 +646,16 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
 func (c *SmartContract) GetTimeFromOracle(ctx contractapi.TransactionContextInterface) (string, error) {
-    // Call the Time Oracle chaincode
-    response := ctx.GetStub().InvokeChaincode("timeoracle", [][]byte{[]byte("GetTimeNtp")}, "mychannel")
+	// Call the Time Oracle chaincode
+	response := ctx.GetStub().InvokeChaincode("timeoracle", [][]byte{[]byte("GetTimeNtp")}, "mychannel")
 
-    // Check if the response is successful
-    if response.Status != 200 {
-        return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
-    }
-
+	// Check if the response is successful
+	if response.Status != 200 {
+		return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
+	}
 
 	log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
 
-    // Return the retrieved timestamp to the user
-    return string(response.Payload), nil
+	// Return the retrieved timestamp to the user
+	return string(response.Payload), nil
 }

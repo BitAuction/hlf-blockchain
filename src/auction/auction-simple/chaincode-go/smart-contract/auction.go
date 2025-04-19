@@ -278,7 +278,8 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		return fmt.Errorf("failed to retrieve transaction timestamp: %v", err)
 	}
 
-	log.Printf("Submitting bid in time: %v, txID: %s", ts, txID)
+	err = fmt.Errorf("Submitting bid in time: %v, txID: %s", ts, txID)
+	log.Println(err)
 
 	// store the hash along with the bidder's organization
 	NewHash := BidHash{
@@ -325,11 +326,7 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	// 	return fmt.Errorf("failed to serialize data: %v", err)
 	// }
 
-	// TODO: Get 5 timestamps from the Time Oracle chaincode
-	bidder_timestamp, err := s.GetTimeFromOracle(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get time from Time Oracle: %v", err)
-	}
+
 	// url := "http://flask-app:5000/bids/new_time" // Replace with the actual URL of your Flask app
 	// // Make an HTTP POST request to your Flask app
 	// resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
@@ -341,7 +338,7 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	//Finish API Additions
 
 	newAuctionJSON, _ := json.Marshal(auction)
-	timestampJSON, _ := json.Marshal(bidder_timestamp)
+	// timestampJSON, _ := json.Marshal(bidder_timestamp)
 	// Read the response body
 	// bodyBytes, err := ioutil.ReadAll(resp.Body)
 	// if err != nil {
@@ -357,10 +354,18 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		return fmt.Errorf("failed to update auction: %v", err)
 	}
 
-	err = ctx.GetStub().PutState(txID, timestampJSON)
+	// TODO: Get 5 timestamps from the Time Oracle chaincode
+	// bidder_timestamp, err := s.GetTimeFromOracle(ctx)
+	err = s.RecordTimeFromOracle(ctx, txID)
 	if err != nil {
-		return fmt.Errorf("failed to save timestamp %v: %v", timestampJSON, err)
+		return fmt.Errorf("failed to get time from Time Oracle: %v", err)
 	}
+
+	// err = ctx.GetStub().PutState(txID, timestampJSON)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to save timestamp %v: %v", timestampJSON, err)
+	// }
+	// fmt.Printf("Successfully saved timestamp %v for transaction ID %s", timestampJSON, txID)
 
 	log.Printf("Breaks 5")
 	return nil
@@ -461,14 +466,15 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	log.Printf("Successfully retrieved timestamp from state: %v", string(body))
 
 	// Deserialize the JSON response into a TimestampResponse struct
-	var timestamps []string
+	// var timestamps []string
+	var timestamps string
 	err = json.Unmarshal(body, &timestamps)
 	if err != nil {
-		return fmt.Errorf("failed to parse API response: %v", err)
+		return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
 	}
 
 	encodedValue := encodeValue(txID)
-	shuffledTimestamps := shuffleTimestamps(timestamps, encodedValue)
+	shuffledTimestamps := shuffleTimestamps([]string{timestamps}, encodedValue)
 
 	// check 3; check hash of relealed bid matches hash of private bid that was
 	// added earlier. This ensures that the bid has not changed since it
@@ -476,7 +482,7 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 
 	bidders := auction.PrivateBids
 	privateBidHashString := bidders[bidKey].Hash
-	Timestamp, err := time.Parse("2006-01-02 15:04:05", shuffledTimestamps)
+	Timestamp, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", shuffledTimestamps)
 	if err != nil {
 		return fmt.Errorf("failed to parse timestamp: %v", err)
 	}
@@ -507,10 +513,10 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	}
 
 	// Get ID of submitting client identity
-	clientID, err := s.GetSubmittingClientIdentity(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client identity %v", err)
-	}
+	// clientID, err := s.GetSubmittingClientIdentity(ctx)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get client identity %v", err)
+	// }
 
 	// marshal transient parameters and ID and MSPID into bid object
 	NewBid := FullBid{
@@ -523,9 +529,9 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	}
 
 	// check 4: make sure that the transaction is being submitted is the bidder
-	if bidInput.Bidder != clientID {
-		return fmt.Errorf("Permission denied, client id %v is not the owner of the bid", clientID)
-	}
+	// if bidInput.Bidder != clientID {
+	// 	return fmt.Errorf("Permission denied, client id %v is not the owner of the bid", clientID)
+	// }
 
 	NewBid.Valid = true
 
@@ -645,17 +651,39 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 }
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
-func (c *SmartContract) GetTimeFromOracle(ctx contractapi.TransactionContextInterface) (string, error) {
+func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  error {
+	existing, err := ctx.GetStub().GetState(txID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		var timestamps string
+		err = json.Unmarshal(existing, &timestamps)
+		if err != nil {
+			return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(existing))
+		}
+		return nil
+	}
+	
 	// Call the Time Oracle chaincode
 	response := ctx.GetStub().InvokeChaincode("timeoracle", [][]byte{[]byte("GetTimeNtp")}, "mychannel")
 
 	// Check if the response is successful
 	if response.Status != 200 {
-		return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
+		return fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
 	}
 
 	log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
 
-	// Return the retrieved timestamp to the user
-	return string(response.Payload), nil
+	jsonTimeStamp, err := json.Marshal(string(response.Payload))
+	if err != nil {
+		return fmt.Errorf("failed to marshal response payload: %v", err)
+	}
+
+	// Save the timestamp
+	err = ctx.GetStub().PutState(txID, jsonTimeStamp) 
+	if err != nil {
+		return fmt.Errorf("failed to save timestamp: %v", err)
+	}
+	return nil
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log"
+	"encoding/json"
+	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 
 	// "os"
 	"strconv"
@@ -306,7 +308,21 @@ func (cc *TimeOracleChaincode) GetTimeNts() pb.Response {
 // the following is logged: "Reach end of file";
 // returns an error with the text "Failed to get response from NTP servers, see log file".
 // The log also stores information about the reasons for the unsuccessful receipt of data from the NTP server.
-func (cc *TimeOracleChaincode) GetTimeNtp() pb.Response {
+func (cc *TimeOracleChaincode) GetTimeNtp(ctx contractapi.TransactionContextInterface, txID string) pb.Response {
+	existing, err := ctx.GetStub().GetState(txID)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		var timestamps string
+		err = json.Unmarshal(existing, &timestamps)
+		if err != nil {
+			return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(existing))
+		}
+		log.Printf("Timestamp already exists: %s", timestamps)
+		return shim.Success([]byte(timestamps))
+	}
+
 	var ntpOpts = ntpOptsStruct{
 		file:         "ntp.txt",
 		timeout:      5,
@@ -333,7 +349,19 @@ func (cc *TimeOracleChaincode) GetTimeNtp() pb.Response {
 	}
 
 	if accurateTime, result := ntpQueryLoop(NTPs, &ntpOpts); result {
-		return shim.Success([]byte(fmt.Sprint(accurateTime)))
+		jsonTimeStamp, err := json.Marshal(accurateTime.String())
+		if err != nil {
+			return shim.Error("failed to marshal response payload: " + err.Error())
+		}
+
+		// Save the timestamp
+		err = ctx.GetStub().PutState(txID, jsonTimeStamp)
+		log.printf("Saved tx: %s", txID)
+		log.Printf("Saved timestamp: %s", jsonTimeStamp) 
+		if err != nil {
+			return shim.Error("failed to save timestamp: " + err.Error())
+		}
+		return shim.Success([]byte(fmt.Sprint(accurateTime)))	
 	}
 
 	log.Printf("Reach end of file : %s", ntpOpts.file)

@@ -13,8 +13,8 @@ src/network/log.txt
 src/network/organizations/cryptogen/crypto-config-org*
 src/bin/*
 
-src/network/compose/*.yaml
-src/network/compose/docker/*.yaml
+# src/network/compose/*.yaml
+# src/network/compose/docker/*.yaml
 
 src/network/configtx/*.yaml
 

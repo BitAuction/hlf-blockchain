@@ -3,9 +3,15 @@
 #
 # Create necessary files and folders
 function createFiles() {
-    mkdir network/configtx
-    mkdir auction/auction-simple/application-javascript/wallet
     mkdir bin/
+    mkdir -p auction/auction-simple/application-javascript/wallet 
+    mkdir -p network/organizations/fabric-ca/ordererOrg 
+    mkdir -p network/organizations/fabric-ca
+    mkdir -p network/configtx 
+    mkdir -p network/compose/docker 
+    mkdir -p network/scripts 
+    mkdir -p network/organizations/cryptogen 
+    mkdir -p auction/test-application/javascript
 
     touch network/compose/compose-net.yaml
     touch network/compose/docker/docker-compose-net.yaml

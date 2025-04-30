@@ -25,7 +25,6 @@ src/network/scripts/envVar.sh
 src/network/scripts/createChannel.sh
 src/network/scripts/deployCC.sh
 
-src/auction/auction-simple/application-javascript/
 src/auction/auction-simple/application-javascript/node_modules
 src/auction/auction-simple/application-javascript/wallet/*
 src/auction/auction-simple/application-javascript/*.js

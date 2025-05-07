@@ -356,10 +356,10 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 
 	// TODO: Get 5 timestamps from the Time Oracle chaincode
 	// bidder_timestamp, err := s.GetTimeFromOracle(ctx)
-	err, _ = s.RecordTimeFromOracle(ctx, txID)
-	if err != nil {
-		return fmt.Errorf("failed to get time from Time Oracle: %v", err)
-	}
+	// err, _ = s.RecordTimeFromOracle(ctx, txID)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to get time from Time Oracle: %v", err)
+	// }
 
 	// err = ctx.GetStub().PutState(txID, timestampJSON)
 	// if err != nil {
@@ -456,22 +456,22 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	// 	return fmt.Errorf("API call to the Flask app failed with status code: %d", resp.StatusCode)
 	// }
 
-	err, body := s.RecordTimeFromOracle(ctx, txID)
-	if err != nil {
-		return fmt.Errorf("failed to read timestamp from state: %v", err)
-	}
-	if len(body) == 0 {
-		return fmt.Errorf("no timestamp found for transaction ID: %s", txID)
-	}
-	log.Printf("Successfully retrieved timestamp from state: %v", string(body))
+	// err, body := s.RecordTimeFromOracle(ctx, txID)
+	// if err != nil {
+	// 	return fmt.Errorf("failed to read timestamp from state: %v", err)
+	// }
+	// if len(body) == 0 {
+	// 	return fmt.Errorf("no timestamp found for transaction ID: %s", txID)
+	// }
+	// log.Printf("Successfully retrieved timestamp from state: %v", string(body))
 
 	// Deserialize the JSON response into a TimestampResponse struct
 	// var timestamps []string
-	var timestamps string = body
+	var timestamps string = "2025-05-07T15:30:30.534214Z"
 	// err = json.Unmarshal(body, &timestamps)
-	if err != nil {
-		return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
+	// }
 
 	encodedValue := encodeValue(txID)
 	shuffledTimestamps := shuffleTimestamps([]string{timestamps}, encodedValue)

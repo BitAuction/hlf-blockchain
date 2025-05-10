@@ -356,7 +356,7 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 
 	// TODO: Get 5 timestamps from the Time Oracle chaincode
 	// bidder_timestamp, err := s.GetTimeFromOracle(ctx)
-	err = s.RecordTimeFromOracle(ctx, txID)
+	_, err = s.RecordTimeFromOracle(ctx, txID)
 	if err != nil {
 		return fmt.Errorf("failed to get time from Time Oracle: %v", err)
 	}
@@ -456,19 +456,19 @@ func (s *SmartContract) RevealBid(ctx contractapi.TransactionContextInterface, a
 	// 	return fmt.Errorf("API call to the Flask app failed with status code: %d", resp.StatusCode)
 	// }
 
-	body, err := ctx.GetStub().GetState(txID)
+	body, err := s.RecordTimeFromOracle(ctx, txID)
 	if err != nil {
 		return fmt.Errorf("failed to read timestamp from state: %v", err)
 	}
-	if body == nil || len(body) == 0 {
+	if len(body) == 0 {
 		return fmt.Errorf("no timestamp found for transaction ID: %s", txID)
 	}
 	log.Printf("Successfully retrieved timestamp from state: %v", string(body))
 
 	// Deserialize the JSON response into a TimestampResponse struct
 	// var timestamps []string
-	var timestamps string
-	err = json.Unmarshal(body, &timestamps)
+	var timestamps string = body
+	// err = json.Unmarshal(body, &timestamps)
 	if err != nil {
 		return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
 	}
@@ -614,15 +614,15 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 		return fmt.Errorf("auction can only be ended by seller: %v", err)
 	}
 
-	Status := auction.Status
-	if Status != "closed" {
-		return fmt.Errorf("Can only end a closed auction")
-	}
+	// Status := auction.Status
+	// if Status != "closed" {
+	// 	return fmt.Errorf("Can only end a closed auction")
+	// }
 
 	// get the list of revealed bids
 	revealedBidMap := auction.RevealedBids
 	if len(auction.RevealedBids) == 0 {
-		return fmt.Errorf("No bids have been revealedd, cannot end auction: %v", err)
+		return fmt.Errorf("No bids have been revealed, cannot end auction: %v", err)
 	}
 
 	// determine the highest bid
@@ -634,10 +634,10 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 	}
 	// TODO: Unneccessary in our case. Remove it.
 	// check if there is a winning bid that has yet to be revealed
-	err = checkForHigherBid(ctx, auction.Price, auction.RevealedBids, auction.PrivateBids)
-	if err != nil {
-		return fmt.Errorf("Cannot end auction: %v", err)
-	}
+	// err = checkForHigherBid(ctx, auction.Price, auction.RevealedBids, auction.PrivateBids)
+	// if err != nil {
+	// 	return fmt.Errorf("Cannot end auction: %v", err)
+	// }
 
 	auction.Status = string("ended")
 
@@ -651,39 +651,22 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 }
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
-func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  error {
-	existing, err := ctx.GetStub().GetState(txID)
-	if err != nil {
-		return err
-	}
-	if existing != nil {
-		var timestamps string
-		err = json.Unmarshal(existing, &timestamps)
-		if err != nil {
-			return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(existing))
-		}
-		return nil
-	}
-	
+func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  (string, error) {
 	// Call the Time Oracle chaincode
-	response := ctx.GetStub().InvokeChaincode("timeoracle", [][]byte{[]byte("GetTimeNtp")}, "mychannel")
 
+	response := ctx.GetStub().InvokeChaincode(
+		"timeoracle",
+		[][]byte{[]byte("GetTimeNtp"), []byte(txID)},
+		"mychannel",
+	)
+	log.Printf("Response from Time Oracle: %v", response)
 	// Check if the response is successful
 	if response.Status != 200 {
-		return fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
+		return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
 	}
 
 	log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
 
-	jsonTimeStamp, err := json.Marshal(string(response.Payload))
-	if err != nil {
-		return fmt.Errorf("failed to marshal response payload: %v", err)
-	}
-
 	// Save the timestamp
-	err = ctx.GetStub().PutState(txID, jsonTimeStamp) 
-	if err != nil {
-		return fmt.Errorf("failed to save timestamp: %v", err)
-	}
-	return nil
+	return string(response.Payload), nil
 }

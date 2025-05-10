@@ -40,6 +40,18 @@ async function submitBid(ccp,wallet,user,orgMSP,auctionID,bidID,orgMSPs) {
 		const network = await gateway.getNetwork(myChannel);
 		const contract = network.getContract(myChaincodeName);
 
+		// Call and COMMIT the time oracle transaction
+		const timeContract = network.getContract("timeoracle");
+		console.log(`\n--> Invoking Time Oracle with bidID: ${bidID}`);
+		let timeTxn = timeContract.createTransaction("GetTimeNtp");
+
+		// Optional: set endorsement policy if required
+		// timeTxn.setEndorsingOrganizations("Org1MSP");
+
+		let timeResponse = await timeTxn.submit(bidID);
+
+		console.log("*** Time Oracle committed with response:", timeResponse.toString());
+
 		console.log('\n--> Evaluate Transaction: query the auction you want to join');
 		let auctionString = await contract.evaluateTransaction('QueryAuction',auctionID);
 		let auctionJSON = JSON.parse(auctionString);

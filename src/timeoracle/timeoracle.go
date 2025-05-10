@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 
 	// "os"
 	"strconv"
@@ -11,8 +13,6 @@ import (
 
 	"github.com/beevik/ntp"
 	"github.com/beevik/nts"
-	"github.com/hyperledger/fabric-chaincode-go/shim"
-	pb "github.com/hyperledger/fabric-protos-go/peer"
 )
 
 type ntpOptsStruct struct {
@@ -68,26 +68,43 @@ type ntsOptsStruct struct {
 	opt *nts.SessionOptions
 }
 
+// TimeOracleChaincode provides functions to get the current time from trusted NTP/NTS sources
 type TimeOracleChaincode struct {
+	contractapi.Contract
 }
 
-func (cc *TimeOracleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
-	return shim.Success(nil)
-}
+// func (cc *TimeOracleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
+// 	return shim.Success(nil)
+// }
 
-func (cc *TimeOracleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
-	function, _ := stub.GetFunctionAndParameters()
+// type TransactionContext struct {
+// 	contractapi.TransactionContextInterface
+// 	stub shim.ChaincodeStubInterface
+// }
 
-	switch function {
-	case "GetTimeNtp":
-		log.Printf("############### Invoking GetTimeNtp")
-		return cc.GetTimeNtp()
-	case "GetTimeNts":
-		return cc.GetTimeNts()
-	default:
-		return shim.Error("Invalid function name.")
-	}
-}
+// func (t *TransactionContext) GetStub() shim.ChaincodeStubInterface {
+// 	return t.stub
+// }
+
+
+// func (cc *TimeOracleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
+// 	function, args := stub.GetFunctionAndParameters()
+// 	ctx := contractapi.NewTransactionContext(stub)
+
+// 	switch function {
+// 	case "GetTimeNtp":
+// 		log.Printf("############### Invoking GetTimeNtp")
+// 		if len(args) < 1 {
+// 			return shim.Error("GetTimeNtp requires a txID argument")
+// 		}
+// 		return cc.GetTimeNtp(ctx, args[0])
+// 	case "GetTimeNts":
+// 		return cc.GetTimeNts()
+// 	default:
+// 		return shim.Error("Invalid function name.")
+// 	}
+// }
+
 
 // split takes string in format "server|port" and returns server, port and error.
 func split(str string) (string, int, error) {
@@ -257,7 +274,7 @@ func ntsQueryLoop(NTPs []string, ntsOpts *ntsOptsStruct, ntpOpts *ntpOptsStruct)
 // returns an error with the text "Failed to get response from NTS servers, see log file".
 // The log also stores information about the reasons for the unsuccessful receipt of data from the NTS server
 // If a man-in-the-middle attack is attempted, the incident will be logged.
-func (cc *TimeOracleChaincode) GetTimeNts() pb.Response {
+func (cc *TimeOracleChaincode) GetTimeNts(ctx contractapi.TransactionContextInterface) (string, error) {
 	var ntsOpts = ntsOptsStruct{
 		file:    "nts.txt",
 		server:  "",
@@ -272,18 +289,6 @@ func (cc *TimeOracleChaincode) GetTimeNts() pb.Response {
 		LocalAddress: "",
 	}
 
-	// if err := checkFileSize(&ntsOpts.file); err != nil {
-	// 	log.Println(err)
-
-	// 	return shim.Error("error in servers list, see log")
-	// }
-
-	// readFile, _ := os.Open(ntsOpts.file) // error has already been checked in the checkFileSize().
-	// defer readFile.Close()
-
-	// fileScanner := bufio.NewScanner(readFile)
-	// fileScanner.Split(bufio.ScanLines)
-
 	NTPs := []string{
 		"0.pool.ntp.org",
 		"0.pool.ntp.org 123",
@@ -292,12 +297,12 @@ func (cc *TimeOracleChaincode) GetTimeNts() pb.Response {
 	}
 
 	if accurateTime, result := ntsQueryLoop(NTPs, &ntsOpts, &ntpOpts); result {
-		return shim.Success([]byte(fmt.Sprint(accurateTime)))
+		return fmt.Sprint(accurateTime), nil
 	}
 
 	log.Printf("Reach end of file : %s", ntsOpts.file)
 
-	return shim.Error("Failed to get response from NTS servers, see log file")
+	return "", fmt.Errorf("Failed to get response from NTS servers, see log file")
 }
 
 // GetTimeNtp returns the timestamp from one of NTP server in format: yyyy-mm-dd hh:mm:ss.nnnnnnnnn +0000 UTC.
@@ -306,7 +311,18 @@ func (cc *TimeOracleChaincode) GetTimeNts() pb.Response {
 // the following is logged: "Reach end of file";
 // returns an error with the text "Failed to get response from NTP servers, see log file".
 // The log also stores information about the reasons for the unsuccessful receipt of data from the NTP server.
-func (cc *TimeOracleChaincode) GetTimeNtp() pb.Response {
+func (cc *TimeOracleChaincode) GetTimeNtp(ctx contractapi.TransactionContextInterface, txID string) (string, error) {
+	stub := ctx.GetStub()
+
+	existing, err := stub.GetState(txID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get state: %s", err.Error())
+	}
+	if existing != nil {
+		log.Printf("Timestamp already exists: %s", string(existing))
+		return string(existing), nil
+	}
+
 	var ntpOpts = ntpOptsStruct{
 		file:         "ntp.txt",
 		timeout:      5,
@@ -317,33 +333,42 @@ func (cc *TimeOracleChaincode) GetTimeNtp() pb.Response {
 		port:         123,
 	}
 
-	// if err := checkFileSize(&ntpOpts.file); err != nil {
-	// 	log.Println("File error :", err)
-
-	// 	return shim.Error("error in servers list, see log file")
-	// }
-
-	// readFile, _ := os.Open(ntpOpts.file) // error has already been checked in the checkFileSize().
-	// defer readFile.Close()
 	NTPs := []string{
 		"0.pool.ntp.org",
-		"0.pool.ntp.org 123",
-		"time3.google.com 123",
+		"0.pool.ntp.org|123",
 		"time3.google.com|123",
 	}
 
 	if accurateTime, result := ntpQueryLoop(NTPs, &ntpOpts); result {
-		return shim.Success([]byte(fmt.Sprint(accurateTime)))
+		jsonTimeStamp, err := json.Marshal(accurateTime.String())
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal response payload: %s", err.Error())
+		}
+
+		// err = stub.PutState(txID, jsonTimeStamp)
+		err = stub.PutState(txID, []byte(accurateTime.String()))
+		if err != nil {
+			return "", fmt.Errorf("failed to save timestamp: %s", err.Error())
+		}
+
+		log.Printf("Saved tx: %s", txID)
+		log.Printf("Saved timestamp: %s", jsonTimeStamp)
+
+		return accurateTime.String(), nil
 	}
 
 	log.Printf("Reach end of file : %s", ntpOpts.file)
-
-	return shim.Error("Failed to get response from NTP servers, see log file")
+	return "", fmt.Errorf("Failed to get response from NTP servers, see log file")
 }
 
 func main() {
-	err := shim.Start(new(TimeOracleChaincode))
+	chaincode, err := contractapi.NewChaincode(&TimeOracleChaincode{})
 	if err != nil {
-		fmt.Printf("Error starting TimeOracleChaincode: %s", err)
+		log.Panicf("Error creating TimeOracleChaincode: %v", err)
 	}
+
+	if err := chaincode.Start(); err != nil {
+		log.Panicf("Error starting TimeOracleChaincode: %v", err)
+	}
+	
 }

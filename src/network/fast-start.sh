@@ -15,3 +15,5 @@ do
 done
 
 ./network.sh deployCC -ccn auction -ccp ../auction/auction-simple/chaincode-go/ -ccl go -ccep "OR(${local_MSP})"
+
+./network.sh deployCC -ccn timeoracle -ccp ../timeoracle -ccl go -ccep "OR(${local_MSP})"

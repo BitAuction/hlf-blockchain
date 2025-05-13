@@ -366,9 +366,8 @@ func main() {
 	if err != nil {
 		log.Panicf("Error creating TimeOracleChaincode: %v", err)
 	}
-
+	
 	if err := chaincode.Start(); err != nil {
 		log.Panicf("Error starting TimeOracleChaincode: %v", err)
 	}
-	
 }

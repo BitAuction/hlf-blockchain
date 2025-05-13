@@ -281,10 +281,10 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 	if Seller != clientID {
 		return fmt.Errorf("auction can only be ended by seller: %v", err)
 	}
-	Status := auction.Status
-	if Status != "closed" {
-		return fmt.Errorf("can only end a closed auction")
-	}
+	// Status := auction.Status
+	// if Status != "closed" {
+	// 	return fmt.Errorf("can only end a closed auction")
+	// }
 	if len(auction.Bids) == 0 {
 		return fmt.Errorf("no bids have been placed, cannot end auction: %v", err)
 	}
@@ -294,6 +294,7 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 			auction.Price = bid.Price
 		}
 	}
+
 	auction.Status = string("ended")
 	endedAuctionJSON, _ := json.Marshal(auction)
 	err = ctx.GetStub().PutState(auctionID, endedAuctionJSON)

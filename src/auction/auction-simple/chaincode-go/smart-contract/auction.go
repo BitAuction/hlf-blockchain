@@ -56,6 +56,8 @@ type Winner struct {
 	HighestBid    int    `json:"highestbid"`
 }
 
+const bidKeyType = "bid"
+
 // CreateAuction creates on auction on the public channel. The identity that
 // submits the transaction becomes the seller of the auction
 func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterface, auctionID string, itemsold string, timelimit string, description string, pictureUrl string) error {
@@ -89,7 +91,7 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 		Timelimit:   t,
 		Description: description,
 		PictureURL:  pictureUrl,
-		Bids: []FullBid{},
+		Bids:        []FullBid{},
 	}
 
 	auctionJSON, err := json.Marshal(auction)
@@ -112,10 +114,30 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 	return nil
 }
 
+// Bid is used to add a user's bid to the auction. The bid is stored in the public
+// storage. The function returns the transaction ID so that users can identify and query their bid
+func (s *SmartContract) Bid(ctx contractapi.TransactionContextInterface, auctionID string, price int) (string, error) {
+
+	// the transaction ID is used as a unique index for the bid
+	txID := ctx.GetStub().GetTxID()
+
+	// create a composite key using the transaction ID
+	bidKey, err := ctx.GetStub().CreateCompositeKey(bidKeyType, []string{auctionID, txID})
+	if err != nil {
+		return "", fmt.Errorf("failed to create composite key: %v", err)
+	}
+
+	priceJSON, _ := json.Marshal(price)
+	err = ctx.GetStub().PutState(bidKey, priceJSON)
+
+	// return the transaction ID so that the user can identify their bid
+	return txID, nil
+}
+
 // SubmitBid is used by the bidder to add the hash of that bid stored in private data to the
 // auction. Note that this function alters the auction in private state, and needs
 // to meet the auction endorsement policy. Transaction ID is used identify the bid
-func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, auctionID string, price int) error {
+func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, auctionID string, txID string) error {
 	auction, err := s.QueryAuction(ctx, auctionID)
 	if err != nil {
 		return fmt.Errorf("failed to get auction: %v", err)
@@ -133,13 +155,65 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		return fmt.Errorf("failed to get org: %v", err)
 	}
 
+	// get the bid from public state
+	bidKey, err := ctx.GetStub().CreateCompositeKey(bidKeyType, []string{auctionID, txID})
+	if err != nil {
+		return fmt.Errorf("failed to create composite key: %v", err)
+	}
+	priceBytes, err := ctx.GetStub().GetState(bidKey)
+	if err != nil {
+		return fmt.Errorf("failed to get bid from public state: %v", err)
+	}
+	if priceBytes == nil {
+		return fmt.Errorf("bid not found in public state")
+	}
+	var price int
+	err = json.Unmarshal(priceBytes, &price)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal bid: %v", err)
+	}
+	// check if the bid is valid
+	if price <= 0 {
+		return fmt.Errorf("invalid bid amount: %v", err)
+	}
+
+
+	body, err := s.RecordTimeFromOracle(ctx, txID)
+	if err != nil {
+		return fmt.Errorf("failed to read timestamp from state: %v", err)
+	}
+	if len(body) == 0 {
+		return fmt.Errorf("no timestamp found for transaction ID: %s", txID)
+	}
+	log.Printf("Successfully retrieved timestamp from state: %v", string(body))
+
+	// Deserialize the JSON response into a TimestampResponse struct
+	// var timestamps []string
+	var timestamps string = body
+	// err = json.Unmarshal(body, &timestamps)
+	if err != nil {
+		return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
+	}
+
+	encodedValue := encodeValue(txID)
+	shuffledTimestamps := shuffleTimestamps([]string{timestamps}, encodedValue)
+
+	// check 3; check hash of relealed bid matches hash of private bid that was
+	// added earlier. This ensures that the bid has not changed since it
+	// was added to the auction
+
+	Timestamp, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", shuffledTimestamps)
+	if err != nil {
+		return fmt.Errorf("failed to parse timestamp: %v", err)
+	}
+
 	bid := FullBid{
 		Type:      "bid",
 		Price:     price,
 		Org:       org,
 		Bidder:    bidder,
 		Valid:     true,
-		Timestamp: time.Now().UTC(),
+		Timestamp: Timestamp,
 	}
 
 	auction.Bids = append(auction.Bids, bid)
@@ -230,10 +304,15 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 }
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
-func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string) (string, error) {
+func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  (string, error) {
 	// Call the Time Oracle chaincode
-	response := ctx.GetStub().InvokeChaincode("timeoracle", [][]byte{[]byte("GetTimeNtp")}, "mychannel")
 
+	response := ctx.GetStub().InvokeChaincode(
+		"timeoracle",
+		[][]byte{[]byte("GetTimeNtp"), []byte(txID)},
+		"mychannel",
+	)
+	log.Printf("Response from Time Oracle: %v", response)
 	// Check if the response is successful
 	if response.Status != 200 {
 		return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
@@ -241,6 +320,6 @@ func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextI
 
 	log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
 
-	// Return the timestamp
+	// Save the timestamp
 	return string(response.Payload), nil
 }

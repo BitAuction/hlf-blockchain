@@ -40,14 +40,26 @@ async function submitBid(ccp,wallet,user,orgMSP,auctionID,bidID,orgMSPs) {
 		const network = await gateway.getNetwork(myChannel);
 		const contract = network.getContract(myChaincodeName);
 
-		console.log('\n--> Evaluate Transaction: query the auction you want to join');
+		// Call and COMMIT the time oracle transaction
+		const timeContract = network.getContract("timeoracle");
+		console.log(`\n--> Invoking Time Oracle with bidID: ${bidID}`);
+		let timeTxn = timeContract.createTransaction("GetTimeNtp");
+
+		// Optional: set endorsement policy if required
+		// timeTxn.setEndorsingOrganizations("Org1MSP");
+
+		let timeResponse = await timeTxn.submit(bidID);
+
+		console.log("*** Time Oracle committed with response:", timeResponse.toString());
+		
+		console.log('\n--> Evaluate Transaction: query the auction you want to join ' + auctionID);
 		let auctionString = await contract.evaluateTransaction('QueryAuction',auctionID);
 		let auctionJSON = JSON.parse(auctionString);
 
-		let qb = await contract.evaluateTransaction('QueryBid',auctionID,bidID);
+		// let qb = await contract.evaluateTransaction('QueryBid',auctionID,bidID);
 		let qa = await contract.evaluateTransaction('QueryAuction',auctionID);
 
-		console.log("---bid: "+qb);
+		// console.log("---bid: "+qb);
 		console.log("---auction: "+qa);
 
 		let h_bidder1, h_bid1 = await contract.evaluateTransaction('GetHb',auctionID);
@@ -63,39 +75,8 @@ async function submitBid(ccp,wallet,user,orgMSP,auctionID,bidID,orgMSPs) {
 
 		let valid=true;
 
-		if (qb.toString().includes("false") ||orgMSP === current_w) {
-			valid=false;
-		}
-
 		await statefulTxn1.submit(auctionID,bidID,valid);
 		
-		//Added
-		let auctionString2 = await contract.evaluateTransaction('QueryAuction',auctionID);
-		let auctionJSON2 = JSON.parse(auctionString2);
-
-		let statefulTxn2 = contract.createTransaction('RevealBid');
-		let qb2 = await contract.evaluateTransaction('QueryBid',auctionID,bidID);
-
-		console.log("---bid 2: "+qb)
-
-		let bidJSON = JSON.parse(qb2);
-		let bidData = { objectType: 'bid', price: parseInt(bidJSON.price), org: bidJSON.org, bidder: bidJSON.bidder, Valid: bidJSON.valid, Timestamp: bidJSON.timestamp};
-		let tmapData = Buffer.from(JSON.stringify(bidData));
-		
-		statefulTxn2.setTransient({
-			bid: tmapData
-		});
-			
-
-		console.log('\n--> Evaluate Transaction: query the auction to see that our bid was added');
-		let result = await contract.evaluateTransaction('QueryAuction',auctionID);
-		console.log('*** Result: Auction: ' + prettyJSONString(result.toString()));
-
-		
-		//added
-		
-		statefulTxn2.setEndorsingOrganizations(...auctionJSON2.organizations);
-		await statefulTxn2.submit(auctionID,bidID,bidJSON.valid);
 		console.log('\n--> Evaluate Transaction: query the auction to see that our bid was added');
 		let result2 = await contract.evaluateTransaction('QueryAuction',auctionID);
 		console.log('*** Result: Auction: ' + prettyJSONString(result2.toString()));

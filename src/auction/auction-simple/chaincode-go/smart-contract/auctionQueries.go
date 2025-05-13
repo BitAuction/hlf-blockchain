@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	// "github.com/hyperledger/fabric-chaincode-go/shim" // Remove unused import
+	// Remove unused import
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
@@ -30,6 +30,51 @@ func (s *SmartContract) QueryAuction(ctx contractapi.TransactionContextInterface
 	}
 
 	return auction, nil
+}
+
+// QueryBid allows the submitter of the bid to read their bid from public state
+func (s *SmartContract) QueryBid(ctx contractapi.TransactionContextInterface, auctionID string, txID string) (*FullBid, error) {
+
+	err := verifyClientOrgMatchesPeerOrg(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get implicit collection name: %v", err)
+	}
+
+	clientID, err := s.GetSubmittingClientIdentity(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get client identity %v", err)
+	}
+
+	collection, err := getCollectionName(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get implicit collection name: %v", err)
+	}
+
+	bidKey, err := ctx.GetStub().CreateCompositeKey(bidKeyType, []string{auctionID, txID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create composite key: %v", err)
+	}
+
+	bidJSON, err := ctx.GetStub().GetPrivateData(collection, bidKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bid %v: %v", bidKey, err)
+	}
+	if bidJSON == nil {
+		return nil, fmt.Errorf("bid %v does not exist", bidKey)
+	}
+
+	var bid *FullBid
+	err = json.Unmarshal(bidJSON, &bid)
+	if err != nil {
+		return nil, err
+	}
+
+	// check that the client querying the bid is the bid owner
+	if bid.Bidder != clientID {
+		return nil, fmt.Errorf("Permission denied, client id %v is not the owner of the bid", clientID)
+	}
+
+	return bid, nil
 }
 
 // function used to get highest bid and bidder

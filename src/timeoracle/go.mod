@@ -5,8 +5,8 @@ go 1.21.0
 toolchain go1.23.7
 
 require (
-	github.com/hyperledger/fabric-chaincode-go v0.0.0-20240704073638-9fb89180dc17
-	github.com/hyperledger/fabric-protos-go v0.3.3
+	github.com/hyperledger/fabric-chaincode-go v0.0.0-20240704073638-9fb89180dc17 // indirect
+	github.com/hyperledger/fabric-protos-go v0.3.3 // indirect
 )
 
 require (

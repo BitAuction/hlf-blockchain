@@ -106,7 +106,10 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 	}
 
 	// set the seller of the auction as an endorser
-	err = setAssetStateBasedEndorsement(ctx, auctionID, clientOrgID)
+	// err = setAssetStateBasedEndorsement(ctx, auctionID, clientOrgID)
+
+    // This allows any organization to endorse transactions
+    err = ctx.GetStub().SetStateValidationParameter(auctionID, nil)
 	if err != nil {
 		return fmt.Errorf("failed setting state based endorsement for new organization: %v", err)
 	}

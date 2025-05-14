@@ -150,7 +150,12 @@ func (s *SmartContract) GetAllAuctionsBySeller(ctx contractapi.TransactionContex
 			continue
 		}
 
-		if auction.Seller == sellerID {
+		auctionSeller, err := s.ParseClientID(auction.Seller)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse auction seller: %v", err)
+		}
+
+		if auctionSeller == sellerID {
 			results = append(results, &auction)
 		}
 	}

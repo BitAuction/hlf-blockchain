@@ -108,8 +108,8 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 	// set the seller of the auction as an endorser
 	// err = setAssetStateBasedEndorsement(ctx, auctionID, clientOrgID)
 
-    // This allows any organization to endorse transactions
-    err = ctx.GetStub().SetStateValidationParameter(auctionID, nil)
+	// This allows any organization to endorse transactions
+	err = ctx.GetStub().SetStateValidationParameter(auctionID, nil)
 	if err != nil {
 		return fmt.Errorf("failed setting state based endorsement for new organization: %v", err)
 	}
@@ -179,7 +179,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	if price <= 0 {
 		return fmt.Errorf("invalid bid amount: %v", err)
 	}
-
 
 	body, err := s.RecordTimeFromOracle(ctx, txID)
 	if err != nil {
@@ -308,7 +307,7 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 }
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
-func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  (string, error) {
+func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string) (string, error) {
 	// Call the Time Oracle chaincode
 
 	response := ctx.GetStub().InvokeChaincode(

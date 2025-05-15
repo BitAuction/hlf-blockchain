@@ -28,7 +28,7 @@ type SmartContract struct {
 
 // Auction data
 type Auction struct {
-	AuctionID   string    `json:"AuctionID"`
+	AuctionID   string    `json:"auctionID"`
 	Type        string    `json:"objectType"`
 	ItemSold    string    `json:"item"`
 	Seller      string    `json:"seller"`

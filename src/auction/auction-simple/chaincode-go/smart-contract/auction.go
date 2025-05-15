@@ -28,6 +28,7 @@ type SmartContract struct {
 
 // Auction data
 type Auction struct {
+	AuctionID   string    `json:"AuctionID"`
 	Type        string    `json:"objectType"`
 	ItemSold    string    `json:"item"`
 	Seller      string    `json:"seller"`
@@ -81,6 +82,7 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 
 	// Create auction
 	auction := Auction{
+		AuctionID:   auctionID,
 		Type:        "auction",
 		ItemSold:    itemsold,
 		Price:       0,
@@ -107,6 +109,9 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 
 	// set the seller of the auction as an endorser
 	err = setAssetStateBasedEndorsement(ctx, auctionID, clientOrgID)
+
+	// This allows any organization to endorse transactions
+	// err = ctx.GetStub().SetStateValidationParameter(auctionID, nil)
 	if err != nil {
 		return fmt.Errorf("failed setting state based endorsement for new organization: %v", err)
 	}
@@ -177,7 +182,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		return fmt.Errorf("invalid bid amount: %v", err)
 	}
 
-
 	body, err := s.RecordTimeFromOracle(ctx, txID)
 	if err != nil {
 		return fmt.Errorf("failed to read timestamp from state: %v", err)
@@ -191,9 +195,9 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	// var timestamps []string
 	var timestamps string = body
 	// err = json.Unmarshal(body, &timestamps)
-	if err != nil {
-		return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
-	}
+	// if err != nil {
+	// 	return fmt.Errorf("failed to parse API response: %v with body: %v", err, string(body))
+	// }
 
 	encodedValue := encodeValue(txID)
 	shuffledTimestamps := shuffleTimestamps([]string{timestamps}, encodedValue)
@@ -305,7 +309,7 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 }
 
 // GetTimeFromOracle calls the Time Oracle chaincode and returns the current time
-func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string)  (string, error) {
+func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string) (string, error) {
 	// Call the Time Oracle chaincode
 
 	response := ctx.GetStub().InvokeChaincode(

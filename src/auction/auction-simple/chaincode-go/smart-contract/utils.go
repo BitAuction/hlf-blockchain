@@ -7,24 +7,41 @@ package auction
 import (
 	"encoding/base64"
 	"fmt"
+	"hash/crc32"
+	"math/rand"
+	"strings"
+
 	"github.com/hyperledger/fabric-chaincode-go/pkg/statebased"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
-	"hash/crc32"
-	"math/rand"
 )
 
 func (s *SmartContract) GetSubmittingClientIdentity(ctx contractapi.TransactionContextInterface) (string, error) {
-
 	b64ID, err := ctx.GetClientIdentity().GetID()
 	if err != nil {
-		return "", fmt.Errorf("Failed to read clientID: %v", err)
+		return "", fmt.Errorf("failed to read clientID: %v", err)
 	}
 	decodeID, err := base64.StdEncoding.DecodeString(b64ID)
 	if err != nil {
 		return "", fmt.Errorf("failed to base64 decode clientID: %v", err)
 	}
 	return string(decodeID), nil
+}
+
+func (s *SmartContract) ParseClientID(idStr string) (string, error) {
+	// reference: https://github.com/hyperledger/fabric-chaincode-go/blob/main/pkg/cid/interfaces.go
+    // Extract CN from the X.509 subject
+    if strings.HasPrefix(idStr, "x509::") {
+        // Split by CN= and get the first part
+        parts := strings.Split(idStr, "CN=")
+        if len(parts) > 1 {
+            // Get the CN value and split by comma to get just the CN
+            cnParts := strings.Split(parts[1], ",")
+            return cnParts[0], nil
+        }
+    }
+
+	return idStr, nil
 }
 
 // setAssetStateBasedEndorsement sets the endorsement policy of a new auction

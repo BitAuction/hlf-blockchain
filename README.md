@@ -1,29 +1,22 @@
 # D0020E - A decentralized on-chain auction system based on signatures and blockchain
 
-This project is part of the course ’D0020E - Project in Computer Science and Engineering’ at Luleå University of Technology. The aims of the course are to expand the students knowledge and understanding of engineering projects.
+This project is our graduation project, implementing an open auction system on the Hyperledger Fabric (HLF) blockchain. 
 
-## The Project
+## Abstract
 
-The project assignment has been to create ’A decentralized on-chain auction system based on signatures and blockchain’.  The system should allow a client to connect to a validator network and place an item up for auction. Other clients should be allowed to see the following items that are up for sale and also be able to connect to the validator network and place bids on the sales items. The highest bidder of the auction wins the item.
-You can read more about the project [here](https://www.overleaf.com/read/gkmzgnktkyyz)
+Blockchain technology has revolutionized online applications by introducing decentralization, transparency, and immutability. Auctions, widely adopted across industries, benefit from these properties to ensure fairness and trust. This project explores a blockchain-based open-outcry auction system, addressing challenges such as limited accessibility, centralized dependencies, and bid timing accuracy. By leveraging smart contracts and distributed mechanisms, the system ensures tamper-proof, transparent, and scalable bidding processes. The design incorporates trusted timestamps and consensus mechanisms to maintain fairness and support global participation.
 
-## Background
-
-The popularity of the internet has increased the use of electronic auctions, which is a model where sellers and buyers compete over assets and rights where the highest bid usually wins. There are different types of auctions, the four most common are the English-, Dutch-, sealed-bid- and double auction.
-
-Currently most electronic auction systems are centralized where a third party is acting like a middle man with a web application. These systems requires that the third party is trustworthy and secure since it needs to keep all the information in a database. If the third party somehow is compromised it could leak privileged information or act bias in an auction, especially in a sealed-bid auction.
-
-One way to avoid these problems is by using a decentralized auction system based on signatures and blockchain where no third party is needed. In a system like this all the participants are connected to a private network where they can create auctions and choose who is allowed to participate. When an auction is complete and a winner is decided a smart contract is written between the auctioneer and the winner. All the data from the auction is saved to a distributed blockchain ledger specifically for that auction.
-
+This work is inspired by the paper "Digitalized and Decentralized Open-Cry Auctioning: Key Properties, Solution Design, and Implementation" (DOI: 10.1109/ACCESS.2024.3395791).
 
 ## The Group
-The student group consists of the following four members:
+The student group consists of the following six members:
 
-@syko240 - André Roaas androa-0@student.ltu.se \
-@Elock98 - Emil Lock emiloc-0@student.ltu.se \
-@peggykhialie - Peggy Khialie pegkhi-0@student.ltu.se\
-@linseb-9 - Sebastian Lindgren linseb-9@student.ltu.se
-
+Amr Ahmed  \
+Fareeda Ragab  \
+Joseph Shokry  \
+Mohamed Arous  \
+Michael Monir  \
+Omar Tammam  
 
 ## Setup Environment
 
@@ -72,7 +65,7 @@ Fast start and the manual start does the same thing.
 
 The number of orgs must be the same for both network setup and network start.
 
-### Manuel start
+### Manual start
 
 (Default 2 orgs)
 
@@ -91,12 +84,11 @@ Note the last section of the command above is the endorsement policy, for more i
 
 More information about the network startup can be found [here](src/network/README.md).
 
-
 ## Auction (demo)
 
-(Important: The demo require 4 orgs)
+(Important: The demo requires 4 orgs)
 
-This is a demo for the sealed auction with 4 users: 1 seller and 3 bidders
+This is a demo for the open auction with 4 users: 1 seller and 3 bidders
 
 Enroll orgs as admins.
 ```
@@ -123,11 +115,11 @@ node bid.js org1 bidder1 Auction 800
 node bid.js org1 bidder1 Auction 600
 node submitBid.js org1 bidder1 Auction <BidID>
 ```
-Note that both transactions generate a BidID, save this value because you will need it to submit the bid as well reveal it.
+Note that both transactions generate a BidID, save this value because you will need it to submit the bid.
 
 From both generated bids you should see a field "valid", a true or false value. This field will only be false if a bid has already been submitted from the same org.
 
-We will also be trying to make a new bid for org1 and submit the last one that we did not submit and the new which we just created.
+We will also be trying to make a new bid for org1 and submit the last one that we did not submit and the new one which we just created.
 ```
 node bid.js org1 bidder1 Auction 700
 node submitBid.js org1 bidder1 Auction <BidID>
@@ -142,7 +134,7 @@ node submitBid.js org2 bidder2 Auction <BidID>
 ```
 We will not try to close the auction before org3 has submitted a bid.
 
-Note that we need to query the auction because trying to close the auction prematurely wont give an output.
+Note that we need to query the auction because trying to close the auction prematurely won't give an output.
 ```
 node closeAuction.js org4 seller Auction
 node queryAuction.js org4 seller Auction
@@ -156,25 +148,17 @@ node submitBid.js org3 bidder3 Auction <BidID>
 ```
 Now every participating organization has submitted a bid, and instead of having the seller call for a close, the auction will instead automatically close.
 
-Reveal the submitted bids for org1 and org2.
-```
-node revealBid.js org1 bidder1 Auction <BidID>
-node revealBid.js org2 bidder2 Auction <BidID>
-```
-
 The seller will now attempt to end the auction.
 ```
 node endAuction.js org4 seller Auction
 ```
-This proposal will be rejected by org3 since org3 have the winning bid.
+This proposal will be rejected by org3 since org3 has the winning bid.
 
-Reveal the last bid and end the auction.
+End the auction.
 ```
-node revealBid.js org3 bidder3 Auction <bidID>
 node endAuction.js org4 seller Auction
 ```
 Now the auction status should be set to "Ended" and the winner and winning bid is shown.
-
 
 ## Licensing
 

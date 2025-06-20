@@ -14,6 +14,6 @@ do
 	org=$(($org+1))
 done
 
-./network.sh deployCC -ccn auction -ccp ../auction/auction-simple/chaincode-go/ -ccl go -ccep "OR(${local_MSP})"
+./network.sh deployCC -ccn auction -ccp ../auction/auction-simple/bitAuction/ -ccl go -ccep "OR(${local_MSP})"
 
 ./network.sh deployCC -ccn timeoracle -ccp ../timeoracle -ccl go -ccep "OR(${local_MSP})"

@@ -55,19 +55,6 @@ func TestSubmitBid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestCloseAuction(t *testing.T) {
-	contract, ctx := setup()
-	auctionJSON, _ := json.Marshal(auction.Auction{
-		AuctionID: "auction1",
-		Seller:    "user1",
-		Status:    "open",
-		Timelimit: time.Now().Add(-1 * time.Hour),
-	})
-	ctx.Stub.State["auction1"] = auctionJSON
-	contract.EndAuction(ctx, "auction1")
-	err := contract.CloseAuction(ctx, "auction1")
-	assert.NoError(t, err)
-}
 
 func TestEndAuction(t *testing.T) {
 	contract, ctx := setup()
@@ -95,7 +82,7 @@ func TestRecordTimeFromOracle(t *testing.T) {
 }
 
 // TestBidAfterAuctionEnded tests that bidding is not allowed after the auction time limit
-func TestBidAfterAuctionEnded(t *testing.T) {
+func TestBidAfterAuctionTimeLimit(t *testing.T) {
 	contract, ctx := setup()
 
 	// Create an auction with a past time limit
@@ -122,56 +109,6 @@ func TestBidAfterAuctionEnded(t *testing.T) {
 	// The bid should be rejected
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "auction has already ended")
-}
-
-// TestCloseClosedAuction tests that an already closed auction cannot be closed again
-func TestCloseClosedAuction(t *testing.T) {
-	contract, ctx := setup()
-
-	// Create an auction that is already closed
-	auctionJSON, _ := json.Marshal(auction.Auction{
-		AuctionID: "auction1",
-		Seller:    "user1",
-		Status:    "closed", // Already closed status
-		Timelimit: time.Now().Add(-1 * time.Hour),
-	})
-	ctx.Stub.State["auction1"] = auctionJSON
-	// Attempt to close the auction again
-	err := contract.CloseAuction(ctx, "auction1")
-
-	// The operation should be rejected
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot close auction that is not open")
-}
-
-// TestBidAfterAuctionClosed tests that bidding is not allowed after the auction is closed by the seller
-func TestBidAfterAuctionClosed(t *testing.T) {
-	contract, ctx := setup()
-
-	// Create an auction with a future time limit but closed status
-	futureTime := time.Now().Add(1 * time.Hour) // 1 hour in the future
-	auctionJSON, _ := json.Marshal(auction.Auction{
-		AuctionID: "auction1",
-		Type:      "auction",
-		ItemSold:  "Laptop",
-		Seller:    "user1",
-		Orgs:      []string{"Org1MSP"},
-		Status:    "closed", // Closed by seller
-		Timelimit: futureTime,
-		Bids:      []auction.FullBid{},
-	})
-	ctx.Stub.State["auction1"] = auctionJSON
-
-	// Create a bid in public state
-	priceJSON, _ := json.Marshal(200)
-	ctx.Stub.State["bid:auction1:tx1"] = priceJSON
-
-	// Attempt to submit the bid
-	err := contract.SubmitBid(ctx, "auction1", "tx1")
-
-	// The bid should be rejected
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "auction is not open for bidding")
 }
 
 // TestBidAfterAuctionHasEnded tests that bidding is not allowed after the auction is ended (winner determined)
@@ -235,7 +172,7 @@ func TestEndAlreadyEndedAuction(t *testing.T) {
 }
 
 // TestCloseAuctionBeforeTimeLimit tests that an auction cannot be closed before its time limit has passed
-func TestCloseAuctionBeforeTimeLimit(t *testing.T) {
+func TestEndAuctionBeforeTimeLimit(t *testing.T) {
 	contract, ctx := setup()
 
 	// Create an auction with a future time limit
@@ -249,9 +186,9 @@ func TestCloseAuctionBeforeTimeLimit(t *testing.T) {
 	ctx.Stub.State["auction1"] = auctionJSON
 
 	// Attempt to close the auction before the time limit
-	err := contract.CloseAuction(ctx, "auction1")
+	err := contract.EndAuction(ctx, "auction1")
 
 	// The operation should be rejected
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot close auction before time limit has passed")
+	assert.Contains(t, err.Error(), "cannot end auction before time limit has passed")
 }

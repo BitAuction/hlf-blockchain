@@ -31,7 +31,7 @@ CONTAINERS=()
 
 usedPorts=(":9054:" ":19054:") # Array of ports that have been used
 
-VERBOSE='false'
+VERBOSE='true'
 
 # ---- Option parsing ----
 

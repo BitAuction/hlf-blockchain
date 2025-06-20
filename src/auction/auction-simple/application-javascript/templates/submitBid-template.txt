@@ -17,7 +17,7 @@ const { buildCCPOrgx, buildWallet } = require('../../test-application/javascript
 const myChannel = 'mychannel';
 const myChaincodeName = 'auction';
 
-const closeAuction = require('./closeAuction.js');
+// const closeAuction = require('./closeAuction.js');
 
 function prettyJSONString(inputString) {
 	if (inputString) {

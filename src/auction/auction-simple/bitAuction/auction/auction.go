@@ -233,49 +233,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	return nil
 }
 
-// CloseAuction can be used by the seller to close the auction. This prevents
-// bids from being added to the auction.
-func (s *SmartContract) CloseAuction(ctx contractapi.TransactionContextInterface, auctionID string) error {
-	// get auction from public state
-	auction, err := s.QueryAuction(ctx, auctionID)
-	if err != nil {
-		return fmt.Errorf("failed to get auction from public state %v", err)
-	}
-
-	if auction.Timelimit.After(time.Now().UTC()) {
-		return fmt.Errorf("cannot close auction before time limit has passed")
-	}
-
-	// the auction can only be closed by the seller
-
-	// get ID of submitting client
-	clientID, err := s.GetSubmittingClientIdentity(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get client identity %v", err)
-	}
-
-	Seller := auction.Seller
-	if Seller != clientID {
-		return fmt.Errorf("auction can only be closed by seller: %v", err)
-	}
-
-	Status := auction.Status
-	if Status != "open" {
-		return fmt.Errorf("cannot close auction that is not open")
-	}
-
-	auction.Status = string("closed")
-
-	closedAuctionJSON, _ := json.Marshal(auction)
-
-	err = ctx.GetStub().PutState(auctionID, closedAuctionJSON)
-	if err != nil {
-		return fmt.Errorf("failed to close auction: %v", err)
-	}
-
-	return nil
-}
-
 // EndAuction both changes the auction status to closed and calculates the winners
 // of the auction
 func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, auctionID string) error {
@@ -291,16 +248,16 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 	if Seller != clientID {
 		return fmt.Errorf("auction can only be ended by seller: %v", err)
 	}
+
+	if auction.Timelimit.After(time.Now().UTC()) {
+		return fmt.Errorf("cannot end auction before time limit has passed")
+	}
+
 	Status := auction.Status
 	if Status == "ended" {
 		return fmt.Errorf("auction has already been ended")
 	}
-	if Status != "closed" {
-		return fmt.Errorf("can only end a closed auction")
-	}
-	if len(auction.Bids) == 0 {
-		return fmt.Errorf("no bids have been placed, cannot end auction: %v", err)
-	}
+
 	for _, bid := range auction.Bids {
 		if bid.Price > auction.Price {
 			auction.Winner = bid.Bidder

@@ -3,27 +3,39 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * MODIFICATION NOTICE: 
- * files been generlized from original and generated during setup
+ * MODIFICATION NOTICE:
+ * files been generalized from original and generated during setup
  */
 
-'use strict';
+import { Gateway, Wallets } from 'fabric-network';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { DateTime, Duration } from 'luxon';
+import {
+	buildCCPOrg1,
+	buildCCPOrg2,
+	buildCCPOrg3,
+	buildCCPOrg4,
+	buildWallet,
+	prettyJSONString
+} from '../../test-application/javascript/AppUtil.js';
 
-const { Gateway, Wallets } = require('fabric-network');
-const path = require('path');
-const { buildCCPOrgx, buildWallet, prettyJSONString} = require('../../test-application/javascript/AppUtil.js');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const myChannel = 'mychannel';
 const myChaincodeName = 'auction';
 
-async function createAuction(ccp,wallet,user,auctionID,item,timelimit) {
+async function createAuction(ccp, wallet, user, auctionID, item, timelimit, desc, imageurl) {
 	try {
-
 		const gateway = new Gateway();
 
-		//connect using Discovery enabled
-		await gateway.connect(ccp,
-			{ wallet: wallet, identity: user, discovery: { enabled: true, asLocalhost: true } });
+		// Connect using Discovery enabled
+		await gateway.connect(ccp, {
+			wallet: wallet,
+			identity: user,
+			discovery: { enabled: true, asLocalhost: true }
+		});
 
 		const network = await gateway.getNetwork(myChannel);
 		const contract = network.getContract(myChaincodeName);
@@ -31,25 +43,28 @@ async function createAuction(ccp,wallet,user,auctionID,item,timelimit) {
 		let statefulTxn = contract.createTransaction('CreateAuction');
 
 		console.log('\n--> Submit Transaction: Propose a new auction');
-		await statefulTxn.submit(auctionID,item, timelimit);
+		await statefulTxn.submit(auctionID, item, timelimit, desc, imageurl);
 		console.log('*** Result: committed');
 
 		console.log('\n--> Evaluate Transaction: query the auction that was just created');
-		let result = await contract.evaluateTransaction('QueryAuction',auctionID);
+		let result = await contract.evaluateTransaction('QueryAuction', auctionID);
 		console.log('*** Result: Auction: ' + prettyJSONString(result.toString()));
 
 		gateway.disconnect();
 	} catch (error) {
-		console.error(`******** FAILED to submit bid: ${error}`);
+		console.error(`******** FAILED to submit auction: ${error}`);
 	}
 }
 
 async function main() {
 	try {
-
-		if (process.argv[2] === undefined || process.argv[3] === undefined ||
-            process.argv[4] === undefined || process.argv[5] === undefined) {
-			console.log('Usage: node createAuction.js org userID auctionID item');
+		if (
+			process.argv[2] === undefined || process.argv[3] === undefined ||
+			process.argv[4] === undefined || process.argv[5] === undefined ||
+			process.argv[6] === undefined || process.argv[7] === undefined ||
+			process.argv[8] === undefined
+		) {
+			console.log('Usage: node createAuction.js org userID auctionID item timelimitDelta desc imageurl');
 			process.exit(1);
 		}
 
@@ -57,26 +72,47 @@ async function main() {
 		const user = process.argv[3];
 		const auctionID = process.argv[4];
 		const item = process.argv[5];
-		const now = new Date();
-		const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-		const tomorrowISOString = tomorrow.toISOString(); 
-		const timelimit = tomorrowISOString;
+		const delta = process.argv[6];
+		const desc = process.argv[7];
+		const imageurl = process.argv[8];
 
-		if (org === 'Org1' || org === 'org1') {
-			const ccp = buildCCPOrg1();
-			const walletPath = path.join(__dirname, 'wallet/org1');
-			const wallet = await buildWallet(Wallets, walletPath);
-			await createAuction(ccp,wallet,user,auctionID,item, timelimit);
-		} 
-        //PutNewMainStuff
-        else {
-			console.log('Usage: node createAuction.js org userID auctionID item');
-			console.log('Org must be Org1 or Org2 or Org3 or Org4');
+		const now = new Date();
+		const today = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate(),
+			now.getHours(),
+			now.getMinutes(),
+			now.getSeconds(),
+			now.getMilliseconds()
+		);
+		const final = DateTime.fromJSDate(today).plus(Duration.fromISO(delta)).toISO();
+		console.log('Final time: ' + final);
+
+		let ccp, walletPath, wallet;
+
+		if (org.toLowerCase() === 'org1') {
+			ccp = buildCCPOrg1();
+			walletPath = path.join(__dirname, 'wallet/org1');
+		} else if (org.toLowerCase() === 'org2') {
+			ccp = buildCCPOrg2();
+			walletPath = path.join(__dirname, 'wallet/org2');
+		} else if (org.toLowerCase() === 'org3') {
+			ccp = buildCCPOrg3();
+			walletPath = path.join(__dirname, 'wallet/org3');
+		} else if (org.toLowerCase() === 'org4') {
+			ccp = buildCCPOrg4();
+			walletPath = path.join(__dirname, 'wallet/org4');
+		} else {
+			console.log('Org must be Org1, Org2, Org3, or Org4');
+			process.exit(1);
 		}
+
+		wallet = await buildWallet(Wallets, walletPath);
+		await createAuction(ccp, wallet, user, auctionID, item, final, desc, imageurl);
 	} catch (error) {
 		console.error(`******** FAILED to run the application: ${error}`);
 	}
 }
-
 
 main();

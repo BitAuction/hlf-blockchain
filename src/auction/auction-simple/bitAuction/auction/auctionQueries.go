@@ -7,8 +7,8 @@ package auction
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
-	// Remove unused import
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 )
 
@@ -87,10 +87,14 @@ func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, aucti
 		return &Winner{HighestBidder: "None", HighestBid: 0}, nil
 	}
 	highest := &Winner{}
+	winnerTime := time.Time{}
 	for _, bid := range auction.Bids {
-		if bid.Price > highest.HighestBid {
+		if bid.Price > highest.HighestBid || 
+			(bid.Price == highest.HighestBid && bid.Timestamp.Before(winnerTime)) {
+
 			highest.HighestBidder = bid.Bidder
 			highest.HighestBid = bid.Price
+			winnerTime = bid.Timestamp
 		}
 	}
 	return highest, nil

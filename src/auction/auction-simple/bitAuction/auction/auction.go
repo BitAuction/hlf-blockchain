@@ -122,7 +122,16 @@ func (s *SmartContract) CreateAuction(ctx contractapi.TransactionContextInterfac
 // Bid is used to add a user's bid to the auction. The bid is stored in the public
 // storage. The function returns the transaction ID so that users can identify and query their bid
 func (s *SmartContract) Bid(ctx contractapi.TransactionContextInterface, auctionID string, price int) (string, error) {
-
+	auction, err := s.QueryAuction(ctx, auctionID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get auction: %v", err)
+	}
+	if auction.Status != "open" {
+		return "", fmt.Errorf("auction is not open for bidding")
+	}
+	if auction.Timelimit.Before(time.Now().UTC()) {
+		return "", fmt.Errorf("auction has already ended")
+	}
 	// the transaction ID is used as a unique index for the bid
 	txID := ctx.GetStub().GetTxID()
 
@@ -205,10 +214,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	encodedValue := encodeValue(txID)
 	shuffledTimestamps := shuffleTimestamps([]string{timestamps}, encodedValue)
 
-	// check 3; check hash of relealed bid matches hash of private bid that was
-	// added earlier. This ensures that the bid has not changed since it
-	// was added to the auction
-
 	Timestamp, err := time.Parse("2006-01-02 15:04:05.999999999 -0700 MST", shuffledTimestamps)
 	if err != nil {
 		return fmt.Errorf("failed to parse timestamp: %v", err)
@@ -258,11 +263,18 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 		return fmt.Errorf("auction has already been ended")
 	}
 
-	for _, bid := range auction.Bids {
-		if bid.Price > auction.Price {
-			auction.Winner = bid.Bidder
-			auction.Price = bid.Price
-		}
+	winner, err := s.GetHb(ctx, auctionID)
+	if err != nil {
+		return fmt.Errorf("failed to get highest bid: %v", err)
+	}
+	if winner.HighestBidder == "None" {
+		// No bids were placed, so we can end the auction without a winner
+		auction.Winner = ""
+		auction.Price = 0
+	} else {
+		// There were bids, so we set the winner and price
+		auction.Winner = winner.HighestBidder
+		auction.Price = winner.HighestBid
 	}
 
 	auction.Status = string("ended")

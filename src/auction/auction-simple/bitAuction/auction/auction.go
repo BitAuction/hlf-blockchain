@@ -154,7 +154,7 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	if err != nil {
 		return fmt.Errorf("failed to get auction: %v", err)
 	}
-	
+
 	if err = isAuctionOpenForBidding(auction); err != nil {
 		return err
 	}
@@ -259,18 +259,18 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 		return fmt.Errorf("auction has already been ended")
 	}
 
-	winner, err := s.GetHb(ctx, auctionID)
+	HighestBid, err := s.GetHb(ctx, auctionID)
 	if err != nil {
 		return fmt.Errorf("failed to get highest bid: %v", err)
 	}
-	if winner == nil {
+	if HighestBid == nil {
 		// No bids were placed, so we can end the auction without a winner
 		auction.Winner = ""
 		auction.Price = 0
 	} else {
 		// There were bids, so we set the winner and price
-		auction.Winner = winner.Bidder
-		auction.Price = winner.Price
+		auction.Winner = HighestBid.Bidder
+		auction.Price = HighestBid.Price
 	}
 
 	auction.Status = string("ended")

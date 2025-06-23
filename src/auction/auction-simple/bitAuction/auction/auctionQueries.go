@@ -86,7 +86,7 @@ func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, aucti
 	if len(auction.Bids) == 0 {
 		return nil, nil
 	}
-	var highest *FullBid
+	highest := (*FullBid)(nil)
 	winnerTime := time.Time{}
 	for i, bid := range auction.Bids {
 		if s.isHigherBid(&auction.Bids[i], highest, winnerTime) {

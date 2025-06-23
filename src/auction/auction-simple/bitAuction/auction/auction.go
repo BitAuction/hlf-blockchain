@@ -251,11 +251,11 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 	}
 	Seller := auction.Seller
 	if Seller != clientID {
-		return fmt.Errorf("auction can only be ended by seller: %v", err)
+		return fmt.Errorf("Auction can only be ended by the seller")
 	}
 
 	if auction.Timelimit.After(time.Now().UTC()) {
-		return fmt.Errorf("cannot end auction before time limit has passed")
+		return fmt.Errorf("Cannot end auction before time limit has passed")
 	}
 
 	Status := auction.Status

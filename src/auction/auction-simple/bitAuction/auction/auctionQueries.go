@@ -78,22 +78,20 @@ func (s *SmartContract) QueryBid(ctx contractapi.TransactionContextInterface, au
 }
 
 // function used to get highest bid and bidder
-func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, auctionID string) (*Winner, error) {
+func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, auctionID string) (*FullBid, error) {
 	auction, err := s.QueryAuction(ctx, auctionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get auction from public state %v", err)
 	}
 	if len(auction.Bids) == 0 {
-		return &Winner{HighestBidder: "None", HighestBid: 0}, nil
+		return nil, nil
 	}
-	highest := &Winner{}
+	var highest *FullBid
 	winnerTime := time.Time{}
-	for _, bid := range auction.Bids {
-		if bid.Price > highest.HighestBid || 
-			(bid.Price == highest.HighestBid && bid.Timestamp.Before(winnerTime)) {
-
-			highest.HighestBidder = bid.Bidder
-			highest.HighestBid = bid.Price
+	for i, bid := range auction.Bids {
+		if highest == nil || bid.Price > highest.Price ||
+			(bid.Price == highest.Price && bid.Timestamp.Before(winnerTime)) {
+			highest = &auction.Bids[i]
 			winnerTime = bid.Timestamp
 		}
 	}

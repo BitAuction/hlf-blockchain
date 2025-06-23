@@ -267,14 +267,14 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 	if err != nil {
 		return fmt.Errorf("failed to get highest bid: %v", err)
 	}
-	if winner.HighestBidder == "None" {
+	if winner == nil {
 		// No bids were placed, so we can end the auction without a winner
 		auction.Winner = ""
 		auction.Price = 0
 	} else {
 		// There were bids, so we set the winner and price
-		auction.Winner = winner.HighestBidder
-		auction.Price = winner.HighestBid
+		auction.Winner = winner.Bidder
+		auction.Price = winner.Price
 	}
 
 	auction.Status = string("ended")

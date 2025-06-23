@@ -126,12 +126,10 @@ func (s *SmartContract) Bid(ctx contractapi.TransactionContextInterface, auction
 	if err != nil {
 		return "", fmt.Errorf("failed to get auction: %v", err)
 	}
-	if auction.Status != "open" {
-		return "", fmt.Errorf("auction is not open for bidding")
+	if err = isAuctionOpenForBidding(auction); err != nil {
+		return "", err
 	}
-	if auction.Timelimit.Before(time.Now().UTC()) {
-		return "", fmt.Errorf("auction has already ended")
-	}
+
 	// the transaction ID is used as a unique index for the bid
 	txID := ctx.GetStub().GetTxID()
 
@@ -156,11 +154,9 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	if err != nil {
 		return fmt.Errorf("failed to get auction: %v", err)
 	}
-	if auction.Status != "open" {
-		return fmt.Errorf("auction is not open for bidding")
-	}
-	if auction.Timelimit.Before(time.Now().UTC()) {
-		return fmt.Errorf("auction has already ended")
+	
+	if err = isAuctionOpenForBidding(auction); err != nil {
+		return err
 	}
 
 	bidder, err := s.GetSubmittingClientIdentity(ctx)
@@ -306,3 +302,4 @@ func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextI
 	// Save the timestamp
 	return string(response.Payload), nil
 }
+

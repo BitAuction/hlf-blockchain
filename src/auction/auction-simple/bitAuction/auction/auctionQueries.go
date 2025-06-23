@@ -89,13 +89,34 @@ func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, aucti
 	var highest *FullBid
 	winnerTime := time.Time{}
 	for i, bid := range auction.Bids {
-		if highest == nil || bid.Price > highest.Price ||
-			(bid.Price == highest.Price && bid.Timestamp.Before(winnerTime)) {
+		if s.isHigherBid(&auction.Bids[i], highest, winnerTime) {
 			highest = &auction.Bids[i]
 			winnerTime = bid.Timestamp
 		}
 	}
 	return highest, nil
+}
+
+func (s *SmartContract) isHigherBid(bid *FullBid, highest *FullBid, winnerTime time.Time) bool {
+	// Check if the new bid is higher than the current highest bid
+	if highest == nil || bid.Price > highest.Price {
+		return true
+	}
+	// If the price is the same, check the timestamp
+	if bid.Price == highest.Price && bid.Timestamp.Before(winnerTime) {
+		return true
+	}
+	return false
+}
+
+func isAuctionOpenForBidding(auction *Auction) error {
+	if auction.Status != "open" {
+		return fmt.Errorf("auction is not open for bidding")
+	}
+	if auction.Timelimit.Before(time.Now().UTC()) {
+		return fmt.Errorf("auction has already ended")
+	}
+	return nil
 }
 
 // GetAllOpenAuctions retrieves all auctions with status 'open'

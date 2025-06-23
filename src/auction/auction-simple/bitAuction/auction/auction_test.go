@@ -226,7 +226,7 @@ func TestEndAuctionBeforeTimeLimit(t *testing.T) {
 
 	// The operation should be rejected
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "cannot end auction before time limit has passed")
+	assert.Contains(t, err.Error(), "Cannot end auction before time limit has passed")
 }
 
 // TestTimestampTieBreaking tests that when multiple bids have the same price,

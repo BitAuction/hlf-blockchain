@@ -2,9 +2,12 @@ package auction_test
 
 import (
 	"crypto/x509"
+	"fmt"
+	"strings"
 
 	"github.com/hyperledger/fabric-chaincode-go/pkg/cid"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
+    "github.com/hyperledger/fabric-protos-go/ledger/queryresult"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -32,7 +35,11 @@ func (m *MockStub) GetTxID() string {
 }
 
 func (m *MockStub) CreateCompositeKey(objectType string, attributes []string) (string, error) {
-	return objectType + ":" + attributes[0] + ":" + attributes[1], nil
+	joined := objectType
+	for _, attr := range attributes {
+		joined += ":" + attr
+	}
+	return joined, nil
 }
 
 // Implement all required methods for shim.ChaincodeStubInterface as needed for your tests
@@ -52,9 +59,6 @@ func (m *MockStub) GetStateByRange(startKey, endKey string) (shim.StateQueryIter
 }
 func (m *MockStub) GetStateByRangeWithPagination(startKey, endKey string, pageSize int32, bookmark string) (shim.StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
 	return nil, nil, nil
-}
-func (m *MockStub) GetStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
-	return nil, nil
 }
 func (m *MockStub) GetStateByPartialCompositeKeyWithPagination(objectType string, keys []string, pageSize int32, bookmark string) (shim.StateQueryIteratorInterface, *pb.QueryResponseMetadata, error) {
 	return nil, nil, nil
@@ -105,6 +109,50 @@ func (m *MockStub) InvokeChaincode(chaincodeName string, args [][]byte, channel 
 	}
 	return pb.Response{}
 }
+
+
+type MockStateQueryIterator struct {
+	mock.Mock
+	Items []queryresult.KV
+	Index int
+}
+
+func (iter *MockStateQueryIterator) HasNext() bool {
+	return iter.Index < len(iter.Items)
+}
+
+func (iter *MockStateQueryIterator) Next() (*queryresult.KV, error) {
+	if !iter.HasNext() {
+		return nil, fmt.Errorf("no more items")
+	}
+	item := iter.Items[iter.Index]
+	iter.Index++
+	return &item, nil
+}
+
+func (iter *MockStateQueryIterator) Close() error {
+	return nil
+}
+
+func (m *MockStub) GetStateByPartialCompositeKey(objectType string, keys []string) (shim.StateQueryIteratorInterface, error) {
+	prefix := objectType
+	for _, key := range keys {
+		prefix += ":" + key
+	}
+	var items []queryresult.KV
+	for k, v := range m.State {
+		if strings.HasPrefix(k, prefix) {
+			items = append(items, queryresult.KV{
+				Key:   k,
+				Value: v,
+			})
+		}
+	}
+
+	return &MockStateQueryIterator{Items: items, Index: 0}, nil
+}
+
+
 
 // --- End Mocks ---
 

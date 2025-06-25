@@ -59,6 +59,7 @@ peer:
         # dialTimeout is the duration the gateway waits for a connection
         # to other network nodes.
         dialTimeout: 2m
+        maxConnectionCount: 20000
 
 
     # Keepalive settings for peer server and clients

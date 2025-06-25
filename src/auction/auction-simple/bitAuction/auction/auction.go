@@ -303,21 +303,21 @@ func (s *SmartContract) EndAuction(ctx contractapi.TransactionContextInterface, 
 func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextInterface, txID string) (string, error) {
 	// Call the Time Oracle chaincode
 
-	// response := ctx.GetStub().InvokeChaincode(
-	// 	"timeoracle",
-	// 	[][]byte{[]byte("GetTimeNtp"), []byte(txID)},
-	// 	"mychannel",
-	// )
-	// log.Printf("Response from Time Oracle: %v", response)
-	// // Check if the response is successful
-	// if response.Status != 200 {
-	// 	return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
-	// }
+	response := ctx.GetStub().InvokeChaincode(
+		"timeoracle",
+		[][]byte{[]byte("GetTimeNtp"), []byte(txID)},
+		"mychannel",
+	)
+	log.Printf("Response from Time Oracle: %v", response)
+	// Check if the response is successful
+	if response.Status != 200 {
+		return "", fmt.Errorf("failed to get time from Time Oracle: %s", response.Message)
+	}
 
-	// log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
+	log.Printf("Successfully retrieved time from timeoracle: %v", string(response.Payload))
 
-	// // Save the timestamp
-	// return string(response.Payload), nil
-	return "2025-06-25 19:59:59.31560409 +0000 UTC", nil
+	// Save the timestamp
+	return string(response.Payload), nil
+	// return "2025-06-25 19:59:59.31560409 +0000 UTC", nil
 }
 

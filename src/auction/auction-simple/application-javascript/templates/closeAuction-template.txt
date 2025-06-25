@@ -54,7 +54,6 @@ module.exports.closeAuction = closeAuction;
 
 async function main() {
 	try {
-		if (!process.argv[2].toString().includes("closeAuction.js")) return;
 
 		if (process.argv[2] === undefined || process.argv[3] === undefined ||
             process.argv[4] === undefined) {

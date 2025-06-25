@@ -16,6 +16,7 @@
         "concurrently": "^8.2.2",
         "fabric-ca-client": "^2.2.4",
         "fabric-network": "^2.2.4",
+        "luxon": "^3.6.1",
         "ntp-client": "^0.5.3"
     },
     "devDependencies": {

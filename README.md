@@ -106,7 +106,7 @@ node registerEnrollUser.js org3 bidder3
 ```
 Seller from org4 will create a new auction with auctionID: Auction, and item: art.
 ```
-node createAuction.js org4 seller Auction art
+node createAuction.js org4 seller Auction art PT1H30M "This is text." "image-url.com"
 ```
 Now we generate two bids for org1 and submit the first one.
 

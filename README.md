@@ -160,6 +160,13 @@ node endAuction.js org4 seller Auction
 ```
 Now the auction status should be set to "Ended" and the winner and winning bid is shown.
 
+## Timeoracle (demo)
+from the application-javascript in the auction-simple run the following commands 
+
+```
+node timeoracle_client.js Org1 admin tx001
+```
+
 ## Licensing
 
 This project is based on [hyperledger fabric samples](https://github.com/hyperledger/fabric-samples).

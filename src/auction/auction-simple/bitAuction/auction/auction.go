@@ -240,15 +240,6 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 	}
 
 	return nil
-
-	// auction.Bids = append(auction.Bids, bid)
-
-	// auctionJSON, _ := json.Marshal(auction)
-	// err = ctx.GetStub().PutState(auctionID, auctionJSON)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to update auction: %v", err)
-	// }
-	// return nil
 }
 
 // EndAuction both changes the auction status to closed and calculates the winners
@@ -318,6 +309,5 @@ func (c *SmartContract) RecordTimeFromOracle(ctx contractapi.TransactionContextI
 
 	// Save the timestamp
 	return string(response.Payload), nil
-	// return "2025-06-25 19:59:59.31560409 +0000 UTC", nil
 }
 

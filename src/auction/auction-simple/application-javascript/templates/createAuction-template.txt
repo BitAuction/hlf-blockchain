@@ -7,21 +7,12 @@
  * files been generalized from original and generated during setup
  */
 
-import { Gateway, Wallets } from 'fabric-network';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { DateTime, Duration } from 'luxon';
-import {
-	buildCCPOrg1,
-	buildCCPOrg2,
-	buildCCPOrg3,
-	buildCCPOrg4,
-	buildWallet,
-	prettyJSONString
-} from '../../test-application/javascript/AppUtil.js';
+'use strict';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { Gateway, Wallets } = require('fabric-network');
+const path = require('path');
+const { DateTime, Duration } = require('luxon');
+const { buildCCPOrgx, buildWallet, prettyJSONString} = require('../../test-application/javascript/AppUtil.js');
 
 const myChannel = 'mychannel';
 const myChaincodeName = 'auction';
@@ -91,25 +82,18 @@ async function main() {
 
 		let ccp, walletPath, wallet;
 
-		if (org.toLowerCase() === 'org1') {
+		if (org === 'Org1' || org === 'org1') {
 			ccp = buildCCPOrg1();
 			walletPath = path.join(__dirname, 'wallet/org1');
-		} else if (org.toLowerCase() === 'org2') {
-			ccp = buildCCPOrg2();
-			walletPath = path.join(__dirname, 'wallet/org2');
-		} else if (org.toLowerCase() === 'org3') {
-			ccp = buildCCPOrg3();
-			walletPath = path.join(__dirname, 'wallet/org3');
-		} else if (org.toLowerCase() === 'org4') {
-			ccp = buildCCPOrg4();
-			walletPath = path.join(__dirname, 'wallet/org4');
-		} else {
+			wallet = await buildWallet(Wallets, walletPath);
+			await createAuction(ccp, wallet, user, auctionID, item, final, desc, imageurl);
+		}
+		//PutNewMainStuff
+		else {
+			console.log('Usage: node createAuction.js org userID auctionID item timelimitDelta desc imageurl');
 			console.log('Org must be Org1, Org2, Org3, or Org4');
 			process.exit(1);
 		}
-
-		wallet = await buildWallet(Wallets, walletPath);
-		await createAuction(ccp, wallet, user, auctionID, item, final, desc, imageurl);
 	} catch (error) {
 		console.error(`******** FAILED to run the application: ${error}`);
 	}

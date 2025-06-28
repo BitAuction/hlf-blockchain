@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
+	"sync"
+
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
 
 	// "os"
@@ -12,19 +15,9 @@ import (
 	"time"
 
 	"github.com/beevik/ntp"
-	"github.com/beevik/nts"
 )
 
 type ntpOptsStruct struct {
-	// List of NTP servers. Possible file record formats: "host|port" or "host".
-	// Where "host" - IPv4 address or IPv6 address or domain name. Examples:
-	// "[2001:6d0:ffd4::1]"
-	// "[2001:6d0:ffd4::1]|123"
-	// "82.142.168.18"
-	// "82.142.168.18|123"
-	// "0.pool.ntp.org"
-	// "0.pool.ntp.org|123".
-	file string
 
 	// Timeout determines how long the client waits for a response from the
 	// server before failing with a timeout error.
@@ -50,61 +43,17 @@ type ntpOptsStruct struct {
 	port int
 }
 
-type ntsOptsStruct struct {
-	// List of NTS servers. Possible file record formats: "host|port" or "host".
-	// Where "host" is domain name. Examples:
-	// "time.cloudflare.com"
-	// "time.cloudflare.com|4460".
-	file string
-
-	// Address of the remote NTS server.
+// ntpResult holds the result of an NTP query
+type ntpResult struct {
+	time   time.Time
 	server string
-
-	// Port indicates the port used to reach the remote NTS server.
-	ntsPort int
-
-	// SessionOptions contains options for customizing the behavior of an NTS
-	// session.
-	opt *nts.SessionOptions
+	err    error
 }
 
 // TimeOracleChaincode provides functions to get the current time from trusted NTP/NTS sources
 type TimeOracleChaincode struct {
 	contractapi.Contract
 }
-
-// func (cc *TimeOracleChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
-// 	return shim.Success(nil)
-// }
-
-// type TransactionContext struct {
-// 	contractapi.TransactionContextInterface
-// 	stub shim.ChaincodeStubInterface
-// }
-
-// func (t *TransactionContext) GetStub() shim.ChaincodeStubInterface {
-// 	return t.stub
-// }
-
-
-// func (cc *TimeOracleChaincode) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
-// 	function, args := stub.GetFunctionAndParameters()
-// 	ctx := contractapi.NewTransactionContext(stub)
-
-// 	switch function {
-// 	case "GetTimeNtp":
-// 		log.Printf("############### Invoking GetTimeNtp")
-// 		if len(args) < 1 {
-// 			return shim.Error("GetTimeNtp requires a txID argument")
-// 		}
-// 		return cc.GetTimeNtp(ctx, args[0])
-// 	case "GetTimeNts":
-// 		return cc.GetTimeNts()
-// 	default:
-// 		return shim.Error("Invalid function name.")
-// 	}
-// }
-
 
 // split takes string in format "server|port" and returns server, port and error.
 func split(str string) (string, int, error) {
@@ -132,177 +81,85 @@ func split(str string) (string, int, error) {
 	return server, port, nil
 }
 
-// checkFileSize checks if the file exists and its size. It takes file name. Returns error if:
-// file doesn't exist;
-// size of file == 0;
-// size of file > maxFileSize.
-// func checkFileSize(name *string) error {
-// 	fileInfo, err := os.Stat(*name)
-// 	if err != nil {
-// 		return fmt.Errorf("in checkFileSize(): %s ", err)
-// 	}
+// queryNTP queries a single NTP server and sends the result to the channel
+func queryNTP(serverStr string, ntpOpts *ntpOptsStruct, resultCh chan<- ntpResult, wg *sync.WaitGroup) {
+	defer wg.Done()
 
-// 	var maxFileSize int64 = 102400
-// 	if (fileInfo.Size() == 0) || (fileInfo.Size() > maxFileSize) {
-// 		return fmt.Errorf("in checkFileSize(), bad size of file %s: (must be > 0 or < %d bytes)", *name, maxFileSize)
-// 	}
+	result := ntpResult{server: serverStr}
 
-// 	return nil
-// }
+	log.Printf("Processing NTP server: %s", serverStr)
 
-// ntpQueryLoop sends a request sequentially to each NTP-server in the list until it receives the first response. It gets:
-// a pointer to a file with the list of servers;
-// a pointer to the data structure to form a query.
-// Returns time (in format time.Time) and bool ('true' in case of a response, otherwise `false`).
-func ntpQueryLoop(NTPs []string, ntpOpts *ntpOptsStruct) (time.Time, bool) {
-	// fileScanner := bufio.NewScanner(readFile)
-	// fileScanner.Split(bufio.ScanLines)
-
-	for _, strPointer := range NTPs {
-		var err error
-
-		log.Printf("######### testing connecting to %s", strPointer)
-
-		// strPointer := fileScanner.Text()
-		ntpOpts.server, ntpOpts.port, err = split(strPointer)
-
-		if err != nil {
-			log.Printf("in the GetTimeNtp(): parsing error in file : %v %s ", ntpOpts.file, err)
-
-			continue
-		}
-
-		options := ntp.QueryOptions{
-			Timeout:      ntpOpts.timeout * time.Second,
-			TTL:          ntpOpts.TTL,
-			Port:         ntpOpts.port,
-			Version:      ntpOpts.Version,
-			LocalAddress: ntpOpts.LocalAddress,
-		}
-
-		response, err1 := ntp.QueryWithOptions(ntpOpts.server, options)
-		if err1 != nil || (response == nil) { // not sure if `err1 != nil` always in case `response == nil`
-			log.Printf("error in the GetTimeNtp(): %s ", err1)
-
-			continue
-		}
-
-		if err2 := response.Validate(); err2 != nil {
-			log.Printf("error in the GetTimeNtp(): %s ", err2)
-
-			continue
-		}
-
-		return time.Now().Add(response.ClockOffset).UTC(), true
+	server, port, err := split(serverStr)
+	if err != nil {
+		result.err = fmt.Errorf("failed to parse server %s: %v", serverStr, err)
+		resultCh <- result
+		return
 	}
 
-	var nilTime time.Time
+	options := ntp.QueryOptions{
+		Timeout:      ntpOpts.timeout * time.Second,
+		TTL:          ntpOpts.TTL,
+		Port:         port,
+		Version:      ntpOpts.Version,
+		LocalAddress: ntpOpts.LocalAddress,
+	}
 
-	return nilTime, false
+	response, err := ntp.QueryWithOptions(server, options)
+	if err != nil || response == nil {
+		result.err = fmt.Errorf("query failed for %s: %v", serverStr, err)
+		log.Printf("error in the GetTimeNtp(): %s", err)
+		resultCh <- result
+		return
+	}
+
+	if err := response.Validate(); err != nil {
+		result.err = fmt.Errorf("validation failed for %s: %v", serverStr, err)
+		log.Printf("error in the GetTimeNtp(): %s", err)
+		resultCh <- result
+		return
+	}
+
+	result.time = time.Now().Add(response.ClockOffset).UTC()
+	resultCh <- result
 }
 
-// ntsQueryLoop sends a request sequentially to each NTS-server in the list until it receives the first response. It gets:
-// a pointer to a file with the list of servers;
-// a pointer to the data structure to form a query.
-// Returns time (in format time.Time) and bool ('true' in case of a response, otherwise `false`).
-func ntsQueryLoop(NTPs []string, ntsOpts *ntsOptsStruct, ntpOpts *ntpOptsStruct) (time.Time, bool) {
-	// fileScanner := bufio.NewScanner(readFile)
-	// fileScanner.Split(bufio.ScanLines)
+// ntpQueryLoop sends requests to all NTP servers in parallel and waits for all responses.
+// Returns all successful times and a boolean indicating if any were successful.
+func ntpQueryLoop(NTPs []string, ntpOpts *ntpOptsStruct) ([]time.Time, bool) {
+	var wg sync.WaitGroup
+	resultCh := make(chan ntpResult, len(NTPs))
 
-	var err error
-
-	var host string
-
-	for _, strPointer := range NTPs {
-		// strPointer := fileScanner.Text()
-		ntsOpts.server, ntsOpts.ntsPort, err = split(strPointer)
-
-		if err != nil {
-			log.Printf("in the GetTimeNts(): parsing error in file : %v %s ", ntsOpts.file, err)
-
-			continue
-		}
-
-		switch ntsOpts.ntsPort {
-		case 0:
-			host = ntsOpts.server
-
-		default:
-			host = strings.Join([]string{ntsOpts.server, strconv.Itoa(ntsOpts.ntsPort)}, ":")
-		}
-
-		session, err := nts.NewSessionWithOptions(host, ntsOpts.opt)
-
-		if err != nil {
-			log.Printf("error in the GetTimeNts(): %s", err)
-
-			continue
-		}
-
-		options := ntp.QueryOptions{ // no need to specify a NTP port (using NTP Port from NTS response, see: https://www.rfc-editor.org/rfc/rfc8915#section-4.1.8).
-			Timeout:      ntpOpts.timeout * time.Second,
-			TTL:          ntpOpts.TTL,
-			Version:      ntpOpts.Version,
-			LocalAddress: ntpOpts.LocalAddress,
-		}
-
-		response, err2 := session.QueryWithOptions(&options)
-		if (err2 != nil) || (response == nil) { // not sure if `err2 != nil` always in case `response == nil`
-			log.Printf("error in the GetTimeNts(): %s", err2)
-
-			continue
-		}
-
-		if err3 := response.Validate(); err3 != nil {
-			log.Printf("error in the GetTimeNts(): %s", err3)
-
-			continue
-		}
-
-		return time.Now().Add(response.ClockOffset).UTC(), true
+	// Start goroutines for each NTP server
+	for _, serverStr := range NTPs {
+		wg.Add(1)
+		go queryNTP(serverStr, ntpOpts, resultCh, &wg)
 	}
 
-	var nilTime time.Time
+	// Wait for all goroutines to complete
+	wg.Wait()
+	close(resultCh)
 
-	return nilTime, false
-}
+	// Collect successful results
+	var times []time.Time
+	var successfulServers []string
+	var failedServers []string
 
-// GetTimeNts returns the timestamp from one of NTS server in format: yyyy-mm-dd hh:mm:ss.nnnnnnnnn +0000 UTC.
-// For example: "2024-07-09 15:37:13.879908993 +0000 UTC"
-// In case of failure to connect to any of the servers:
-// the following is logged: "Reach end of file";
-// returns an error with the text "Failed to get response from NTS servers, see log file".
-// The log also stores information about the reasons for the unsuccessful receipt of data from the NTS server
-// If a man-in-the-middle attack is attempted, the incident will be logged.
-func (cc *TimeOracleChaincode) GetTimeNts(ctx contractapi.TransactionContextInterface) (string, error) {
-	var ntsOpts = ntsOptsStruct{
-		file:    "nts.txt",
-		server:  "",
-		ntsPort: 4460,
-		opt:     &nts.SessionOptions{},
+	for result := range resultCh {
+		if result.err != nil {
+			log.Printf("Failed to get time from %s: %v", result.server, result.err)
+			failedServers = append(failedServers, result.server)
+		} else {
+			times = append(times, result.time)
+			successfulServers = append(successfulServers, result.server)
+		}
 	}
 
-	var ntpOpts = ntpOptsStruct{
-		timeout:      5,
-		TTL:          128,
-		Version:      4,
-		LocalAddress: "",
+	log.Printf("Successful NTP servers: %v", successfulServers)
+	if len(failedServers) > 0 {
+		log.Printf("Failed NTP servers: %v", failedServers)
 	}
 
-	NTPs := []string{
-		"0.pool.ntp.org",
-		"0.pool.ntp.org 123",
-		"time3.google.com 123",
-		"time3.google.com|123",
-	}
-
-	if accurateTime, result := ntsQueryLoop(NTPs, &ntsOpts, &ntpOpts); result {
-		return fmt.Sprint(accurateTime), nil
-	}
-
-	log.Printf("Reach end of file : %s", ntsOpts.file)
-
-	return "", fmt.Errorf("Failed to get response from NTS servers, see log file")
+	return times, len(times) > 0
 }
 
 // GetTimeNtp returns the timestamp from one of NTP server in format: yyyy-mm-dd hh:mm:ss.nnnnnnnnn +0000 UTC.
@@ -319,13 +176,12 @@ func (cc *TimeOracleChaincode) GetTimeNtp(ctx contractapi.TransactionContextInte
 		return "", fmt.Errorf("failed to get state: %s", err.Error())
 	}
 	if existing != nil {
-		log.Printf("Timestamp already exists: %s", string(existing))
+		log.Printf("Timestamp with txID %s already exists with value: %s", txID, string(existing))
 		return string(existing), nil
 	}
 
 	var ntpOpts = ntpOptsStruct{
-		file:         "ntp.txt",
-		timeout:      5,
+		timeout:      1,
 		TTL:          128,
 		Version:      4,
 		LocalAddress: "",
@@ -334,18 +190,21 @@ func (cc *TimeOracleChaincode) GetTimeNtp(ctx contractapi.TransactionContextInte
 	}
 
 	NTPs := []string{
-		"0.pool.ntp.org",
-		"0.pool.ntp.org|123",
-		"time3.google.com|123",
+		"time.google.com",
+		"time1.google.com",
+		"time2.google.com",
+		"time3.google.com",
+		"time4.google.com",
 	}
 
-	if accurateTime, result := ntpQueryLoop(NTPs, &ntpOpts); result {
+	if TimeList, result := ntpQueryLoop(NTPs, &ntpOpts); result {
+		log.Printf("Successfully received time from NTP servers: %v", TimeList)
+		accurateTime := TimeList[rand.Intn(len(TimeList))]
 		jsonTimeStamp, err := json.Marshal(accurateTime.String())
 		if err != nil {
 			return "", fmt.Errorf("failed to marshal response payload: %s", err.Error())
 		}
 
-		// err = stub.PutState(txID, jsonTimeStamp)
 		err = stub.PutState(txID, []byte(accurateTime.String()))
 		if err != nil {
 			return "", fmt.Errorf("failed to save timestamp: %s", err.Error())
@@ -357,16 +216,16 @@ func (cc *TimeOracleChaincode) GetTimeNtp(ctx contractapi.TransactionContextInte
 		return accurateTime.String(), nil
 	}
 
-	log.Printf("Reach end of file : %s", ntpOpts.file)
 	return "", fmt.Errorf("Failed to get response from NTP servers, see log file")
 }
 
 func main() {
+	log.Printf("Starting TimeOracleChaincode...")
 	chaincode, err := contractapi.NewChaincode(&TimeOracleChaincode{})
 	if err != nil {
 		log.Panicf("Error creating TimeOracleChaincode: %v", err)
 	}
-	
+
 	if err := chaincode.Start(); err != nil {
 		log.Panicf("Error starting TimeOracleChaincode: %v", err)
 	}

@@ -77,21 +77,50 @@ func (s *SmartContract) QueryBid(ctx contractapi.TransactionContextInterface, au
 	return bid, nil
 }
 
+func (s *SmartContract) QueryBids(ctx contractapi.TransactionContextInterface, auctionID string) ([]*FullBid, error) {
+	// Build partial composite key
+	iter, err := ctx.GetStub().GetStateByPartialCompositeKey("fullbid", []string{auctionID})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bids for auction %s: %v", auctionID, err)
+	}
+	defer iter.Close()
+
+	var bids []*FullBid
+
+	for iter.HasNext() {
+		queryResponse, err := iter.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		var bid FullBid
+		err = json.Unmarshal(queryResponse.Value, &bid)
+		if err != nil {
+			return nil, err
+		}
+
+		bids = append(bids, &bid)
+	}
+
+	return bids, nil
+}
+
+
 // function used to get highest bid and bidder
 func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, auctionID string) (*FullBid, error) {
-	auction, err := s.QueryAuction(ctx, auctionID)
+	bids, err := s.QueryBids(ctx, auctionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get auction from public state %v", err)
+		return nil, err
 	}
-	if len(auction.Bids) == 0 {
+
+	if len(bids) == 0 {
 		return nil, nil
 	}
-	highest := (*FullBid)(nil)
-	winnerTime := time.Time{}
-	for i, bid := range auction.Bids {
-		if s.isHigherBid(&auction.Bids[i], highest, winnerTime) {
-			highest = &auction.Bids[i]
-			winnerTime = bid.Timestamp
+
+	highest := bids[0]
+	for _, bid := range bids {
+		if s.isHigherBid(bid, highest, highest.Timestamp) {
+			highest = bid
 		}
 	}
 	return highest, nil

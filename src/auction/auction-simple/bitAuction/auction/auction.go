@@ -215,7 +215,7 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		return fmt.Errorf("failed to parse timestamp: %v", err)
 	}
 
-	bid := FullBid{
+	fullBid := FullBid{
 		Type:      "bid",
 		Price:     price,
 		Org:       org,
@@ -224,13 +224,21 @@ func (s *SmartContract) SubmitBid(ctx contractapi.TransactionContextInterface, a
 		Timestamp: Timestamp,
 	}
 
-	auction.Bids = append(auction.Bids, bid)
-
-	auctionJSON, _ := json.Marshal(auction)
-	err = ctx.GetStub().PutState(auctionID, auctionJSON)
+	fullBidKey, err := ctx.GetStub().CreateCompositeKey("fullbid", []string{auctionID, txID})
 	if err != nil {
-		return fmt.Errorf("failed to update auction: %v", err)
+		return fmt.Errorf("failed to create full bid key: %v", err)
 	}
+
+	fullBidJSON, err := json.Marshal(fullBid)
+	if err != nil {
+		return fmt.Errorf("failed to marshal full bid: %v", err)
+	}
+
+	err = ctx.GetStub().PutState(fullBidKey, fullBidJSON)
+	if err != nil {
+		return fmt.Errorf("failed to put full bid in state: %v", err)
+	}
+
 	return nil
 }
 

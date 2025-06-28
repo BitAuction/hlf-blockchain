@@ -91,23 +91,65 @@ func TestSubmitBid(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-
 func TestEndAuction(t *testing.T) {
 	contract, ctx := setup()
+
+	// Create timestamps for bids
+	now := time.Now()
+	earlierTime := now.Add(-10 * time.Minute)
+	laterTime := now.Add(-5 * time.Minute)
+
+	// Create auction object with no bids initially
 	auctionObj := auction.Auction{
 		AuctionID: "auction1",
 		Seller:    "user1",
-		Status:    "closed",
-		Bids: []auction.FullBid{
-			{Price: 100, Bidder: "userA"},
-			{Price: 300, Bidder: "userB"},
-		},
+		Status:    "open",
+		Timelimit: now.Add(-1 * time.Hour), // Auction time limit in the past
+		Bids:      []auction.FullBid{},
 	}
 	auctionJSON, _ := json.Marshal(auctionObj)
 	ctx.Stub.State["auction1"] = auctionJSON
 
+	// Create and store full bids using composite keys
+	bid1 := auction.FullBid{
+		Type:      "bid",
+		Price:     100,
+		Org:       "Org1MSP",
+		Bidder:    "userA",
+		Valid:     true,
+		Timestamp: earlierTime,
+	}
+	bid2 := auction.FullBid{
+		Type:      "bid",
+		Price:     300,
+		Org:       "Org1MSP",
+		Bidder:    "userB",
+		Valid:     true,
+		Timestamp: laterTime,
+	}
+
+	// Store bids with composite keys
+	fullBidKey1, _ := ctx.Stub.CreateCompositeKey("fullbid", []string{"auction1", "tx1"})
+	fullBidKey2, _ := ctx.Stub.CreateCompositeKey("fullbid", []string{"auction1", "tx2"})
+
+	fullBidJSON1, _ := json.Marshal(bid1)
+	fullBidJSON2, _ := json.Marshal(bid2)
+
+	ctx.Stub.State[fullBidKey1] = fullBidJSON1
+	ctx.Stub.State[fullBidKey2] = fullBidJSON2
+
+	// End the auction
 	err := contract.EndAuction(ctx, "auction1")
 	assert.NoError(t, err)
+
+	// Check auction state updated
+	endedAuctionJSON := ctx.Stub.State["auction1"]
+	var endedAuction auction.Auction
+	_ = json.Unmarshal(endedAuctionJSON, &endedAuction)
+
+	assert.Equal(t, "ended", endedAuction.Status)
+	assert.Equal(t, "userB", endedAuction.Winner)
+	assert.Equal(t, 300, endedAuction.Price)
 }
 
 func TestRecordTimeFromOracle(t *testing.T) {
@@ -232,59 +274,109 @@ func TestEndAuctionBeforeTimeLimit(t *testing.T) {
 // TestTimestampTieBreaking tests that when multiple bids have the same price,
 // the bid with the earliest timestamp wins
 func TestTimestampTieBreaking(t *testing.T) {
-    contract, ctx := setup()
+	contract, ctx := setup()
 
-    // Create timestamps with clear difference
-    now := time.Now()
-    earlierTime := now.Add(-10 * time.Minute)
-    laterTime := now.Add(-5 * time.Minute)
+	// Create timestamps with clear difference
+	now := time.Now()
+	earlierTime := now.Add(-10 * time.Minute)
+	laterTime := now.Add(-5 * time.Minute)
 
-    // Create auction with multiple bids at the same price but different timestamps
-    auctionObj := auction.Auction{
-        AuctionID: "auction1",
-        Seller:    "user1",
-        Status:    "closed",
-        Bids: []auction.FullBid{
-            {Price: 300, Bidder: "userA", Timestamp: laterTime},   // Later bid (should lose)
-            {Price: 300, Bidder: "userB", Timestamp: earlierTime}, // Earlier bid (should win)
-            {Price: 200, Bidder: "userC", Timestamp: now},         // Lower price bid
-        },
-    }
-    auctionJSON, _ := json.Marshal(auctionObj)
-    ctx.Stub.State["auction1"] = auctionJSON
+	// Create and store auction
+	auctionObj := auction.Auction{
+		AuctionID: "auction1",
+		Seller:    "user1",
+		Status:    "open",
+		Timelimit: now.Add(-1 * time.Hour), // Time limit in the past
+		Bids:      []auction.FullBid{},     // Empty bids array
+	}
+	auctionJSON, _ := json.Marshal(auctionObj)
+	ctx.Stub.State["auction1"] = auctionJSON
 
-    // Test the GetHb function which implements the tie-breaking logic
-    winner, err := contract.GetHb(ctx, "auction1")
-    
-    // Check that the function worked correctly
-    assert.NoError(t, err)
-    assert.NotNil(t, winner)
-    
-    // The winner should be userB who bid first with the highest price
-    assert.Equal(t, "userB", winner.Bidder)
-    assert.Equal(t, 300, winner.Price)
+	// Create bids with same price but different timestamps
+	bid1 := auction.FullBid{
+		Type:      "bid",
+		Price:     300,
+		Org:       "Org1MSP",
+		Bidder:    "userA",
+		Valid:     true,
+		Timestamp: laterTime, // Later bid (should lose)
+	}
+	bid2 := auction.FullBid{
+		Type:      "bid",
+		Price:     300,
+		Org:       "Org1MSP",
+		Bidder:    "userB",
+		Valid:     true,
+		Timestamp: earlierTime, // Earlier bid (should win)
+	}
+	bid3 := auction.FullBid{
+		Type:      "bid",
+		Price:     200,
+		Org:       "Org1MSP",
+		Bidder:    "userC",
+		Valid:     true,
+		Timestamp: now, // Lower price bid
+	}
+
+	// Store bids with composite keys
+	fullBidKey1, _ := ctx.Stub.CreateCompositeKey("fullbid", []string{"auction1", "tx1"})
+	fullBidKey2, _ := ctx.Stub.CreateCompositeKey("fullbid", []string{"auction1", "tx2"})
+	fullBidKey3, _ := ctx.Stub.CreateCompositeKey("fullbid", []string{"auction1", "tx3"})
+
+	fullBidJSON1, _ := json.Marshal(bid1)
+	fullBidJSON2, _ := json.Marshal(bid2)
+	fullBidJSON3, _ := json.Marshal(bid3)
+
+	ctx.Stub.State[fullBidKey1] = fullBidJSON1
+	ctx.Stub.State[fullBidKey2] = fullBidJSON2
+	ctx.Stub.State[fullBidKey3] = fullBidJSON3
+
+	// End the auction to test the tie-breaking logic
+	err := contract.EndAuction(ctx, "auction1")
+	assert.NoError(t, err)
+
+	// Check the auction state to verify the winner
+	endedAuctionJSON := ctx.Stub.State["auction1"]
+	var endedAuction auction.Auction
+	_ = json.Unmarshal(endedAuctionJSON, &endedAuction)
+
+	// The winner should be userB who bid first with the highest price
+	assert.Equal(t, "ended", endedAuction.Status)
+	assert.Equal(t, "userB", endedAuction.Winner)
+	assert.Equal(t, 300, endedAuction.Price)
 }
 
 // TestEndAuctionWithNoBids tests that an auction with no bids has no winner when ended
 func TestEndAuctionWithNoBids(t *testing.T) {
-    contract, ctx := setup()
-    
-    // Create an auction with no bids
-    auctionObj := auction.Auction{
-        AuctionID: "auction1",
-        Seller:    "user1",
-        Status:    "closed",
-        Bids:      []auction.FullBid{}, // No bids
-    }
-    auctionJSON, _ := json.Marshal(auctionObj)
-    ctx.Stub.State["auction1"] = auctionJSON
+	contract, ctx := setup()
 
-    // Test the GetHb function with no bids
-    winner, err := contract.GetHb(ctx, "auction1")
-    
-    // Check that the function worked correctly
-    assert.NoError(t, err)
-    
-    // No bids should result in nil winner
-    assert.Nil(t, winner)
+	// Create an auction with no bids
+	auctionObj := auction.Auction{
+		AuctionID: "auction1",
+		Seller:    "user1",
+		Status:    "open",
+		Timelimit: time.Now().Add(-1 * time.Hour), // Auction ended in the past
+		Bids:      []auction.FullBid{},            // No bids initially
+	}
+	auctionJSON, _ := json.Marshal(auctionObj)
+	ctx.Stub.State["auction1"] = auctionJSON
+
+	// No need to add any bids using composite keys
+	// since we're testing the case with no bids
+
+	// End the auction
+	err := contract.EndAuction(ctx, "auction1")
+
+	// Check that the function worked correctly
+	assert.NoError(t, err)
+
+	// Verify the auction state was updated correctly
+	endedAuctionJSON := ctx.Stub.State["auction1"]
+	var endedAuction auction.Auction
+	_ = json.Unmarshal(endedAuctionJSON, &endedAuction)
+
+	// The auction should be ended with no winner and zero price
+	assert.Equal(t, "ended", endedAuction.Status)
+	assert.Equal(t, "", endedAuction.Winner)
+	assert.Equal(t, 0, endedAuction.Price)
 }

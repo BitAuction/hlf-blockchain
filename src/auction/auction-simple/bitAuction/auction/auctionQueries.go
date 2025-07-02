@@ -105,7 +105,6 @@ func (s *SmartContract) QueryBids(ctx contractapi.TransactionContextInterface, a
 	return bids, nil
 }
 
-
 // function used to get highest bid and bidder
 func (s *SmartContract) GetHb(ctx contractapi.TransactionContextInterface, auctionID string) (*FullBid, error) {
 	bids, err := s.QueryBids(ctx, auctionID)
@@ -213,4 +212,38 @@ func (s *SmartContract) GetAllAuctionsBySeller(ctx contractapi.TransactionContex
 	}
 
 	return results, nil
+}
+
+func (s *SmartContract) TestWriteData(ctx contractapi.TransactionContextInterface) error {
+	// generate random auction ID
+	auctionID := "testAuction123"
+	// Create a new full bid
+	fullBid := &FullBid{
+		Type:      "bid",
+		Price:     100.0,
+		Org:       "testOrg",
+		Bidder:    "testBidder",
+		Valid:     true,
+		Timestamp: time.Now().UTC(),
+	}
+	txID := ctx.GetStub().GetTxID()
+	// Create a composite key for the full bid
+	fullBidKey, err := ctx.GetStub().CreateCompositeKey("fullbid", []string{auctionID, txID})
+	if err != nil {
+		return fmt.Errorf("failed to create composite key: %v", err)
+	}
+
+	// Marshal the full bid to JSON
+	fullBidJSON, err := json.Marshal(fullBid)
+	if err != nil {
+		return fmt.Errorf("failed to marshal full bid: %v", err)
+	}
+
+	// Put the full bid in the public state
+	err = ctx.GetStub().PutState(fullBidKey, fullBidJSON)
+	if err != nil {
+		return fmt.Errorf("failed to put full bid in state: %v", err)
+	}
+
+	return nil
 }
